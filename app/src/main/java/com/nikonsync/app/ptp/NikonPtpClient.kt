@@ -33,7 +33,11 @@ class NikonPtpClient(
         const val PKT_INIT_CMD_ACK = 2
         const val PKT_INIT_EVENT_REQ = 3
         const val PKT_INIT_EVENT_ACK = 4
+        const val PKT_INIT_FAIL = 5
         const val PKT_CMD_REQ = 6
+
+        // 固定的客户端唯一标识 (持久化 GUID: "nikonsyncpro2026")，防止每次重连生成新随机 UUID 导致相机判定为未授权新设备
+        val CLIENT_GUID: UUID = UUID.fromString("6e696b6f-6e73-796e-6370-726f32303236")
         const val PKT_CMD_RESP = 7
         const val PKT_EVENT = 8
         const val PKT_DATA_START = 9
@@ -100,7 +104,7 @@ class NikonPtpClient(
             cmdOut = command.getOutputStream()
 
             // 2. 发送命令通道握手包
-            val guid = UUID.randomUUID()
+            val guid = CLIENT_GUID
             val friendlyName = "NikonSync Pro\u0000"
             val nameBytes = friendlyName.toByteArray(Charsets.UTF_16LE)
             val reqPayload = ByteBuffer.allocate(16 + nameBytes.size + 4).order(ByteOrder.LITTLE_ENDIAN)
@@ -113,8 +117,19 @@ class NikonPtpClient(
 
             // 3. 读取命令通道握手确认
             val ackPacket = readPacket(cmdIn!!)
+            if (ackPacket.type == PKT_INIT_FAIL) {
+                val reason = if (ackPacket.payload.size >= 4) {
+                    ByteBuffer.wrap(ackPacket.payload).order(ByteOrder.LITTLE_ENDIAN).getInt()
+                } else -1
+                val reasonMsg = when (reason) {
+                    1 -> "相机需要配对：请查看相机屏幕是否弹窗提示允许配对，并在相机上按 OK 确认"
+                    2 -> "相机正忙：当前可能有其他设备或软件正连接相机"
+                    else -> "相机拒绝初始化连接(原因码: 0x${Integer.toHexString(reason)})"
+                }
+                throw IllegalStateException(reasonMsg)
+            }
             if (ackPacket.type != PKT_INIT_CMD_ACK) {
-                throw IllegalStateException("非预期的命令通道握手回应类型: ${ackPacket.type}")
+                throw IllegalStateException("非预期的命令通道握手回应类型: 0x${Integer.toHexString(ackPacket.type)}")
             }
             val ackBuffer = ByteBuffer.wrap(ackPacket.payload).order(ByteOrder.LITTLE_ENDIAN)
             connectionNumber = ackBuffer.getInt()
