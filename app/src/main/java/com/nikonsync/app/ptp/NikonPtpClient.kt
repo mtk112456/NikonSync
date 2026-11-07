@@ -21,6 +21,7 @@ class NikonPtpClient(
 ) {
     companion object {
         private const val TAG = "NikonPtpClient"
+        private const val HANDSHAKE_TIMEOUT_MS = 5000
 
         // PTP/IP Packet Types
         const val PKT_INIT_CMD_REQ = 1
@@ -75,15 +76,15 @@ class NikonPtpClient(
     suspend fun connect(): Boolean = withContext(Dispatchers.IO) {
         try {
             Log.d(TAG, "Connecting to camera at $host:$port...")
-            onConnectionStateChanged?.invoke(false, "正在连接相机 $host:$port...")
 
             // 1. Establish Command Channel
-            cmdSocket = Socket().apply {
-                connect(InetSocketAddress(host, port), 5000)
-                tcpNoDelay = true
-            }
-            cmdIn = cmdSocket!!.getInputStream()
-            cmdOut = cmdSocket!!.getOutputStream()
+            val command = Socket()
+            cmdSocket = command
+            command.connect(InetSocketAddress(host, port), HANDSHAKE_TIMEOUT_MS)
+            command.soTimeout = HANDSHAKE_TIMEOUT_MS
+            command.tcpNoDelay = true
+            cmdIn = command.getInputStream()
+            cmdOut = command.getOutputStream()
 
             // 2. Send Init Command Request
             val guid = UUID.randomUUID()
@@ -107,12 +108,13 @@ class NikonPtpClient(
             Log.d(TAG, "Command Channel Established, ConnectionNumber = $connectionNumber")
 
             // 4. Establish Event Channel
-            eventSocket = Socket().apply {
-                connect(InetSocketAddress(host, port), 5000)
-                tcpNoDelay = true
-            }
-            eventIn = eventSocket!!.getInputStream()
-            val eventOut = eventSocket!!.getOutputStream()
+            val event = Socket()
+            eventSocket = event
+            event.connect(InetSocketAddress(host, port), HANDSHAKE_TIMEOUT_MS)
+            event.soTimeout = HANDSHAKE_TIMEOUT_MS
+            event.tcpNoDelay = true
+            eventIn = event.getInputStream()
+            val eventOut = event.getOutputStream()
 
             val eventPayload = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN)
             eventPayload.putInt(connectionNumber)
@@ -126,6 +128,8 @@ class NikonPtpClient(
 
             // 5. Open PTP Session (OpCode 0x1002)
             openSession()
+            command.soTimeout = 0
+            event.soTimeout = 0
 
             isConnected = true
             nativeCore.onSessionOpened()

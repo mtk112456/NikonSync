@@ -1,9 +1,15 @@
-<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.NikonSync" parent="Theme.MaterialComponents.DayNight.NoActionBar">
-        <item name="colorPrimary">#1976D2</item>
-        <item name="colorPrimaryVariant">#1565C0</item>
-        <item name="colorOnPrimary">#FFFFFF</item>
-        <item name="android:statusBarColor">#1976D2</item>
+    <style name="Theme.NikonSync" parent="Theme.Material3.Light.NoActionBar">
+        <item name="colorPrimary">@color/sync_gold</item>
+        <item name="colorOnPrimary">@color/sync_ink</item>
+        <item name="colorSecondary">@color/sync_gold_ink</item>
+        <item name="colorSurface">@color/sync_surface</item>
+        <item name="colorOnSurface">@color/sync_ink</item>
+        <item name="colorOutline">@color/sync_muted</item>
+        <item name="android:windowBackground">@color/sync_canvas</item>
+        <item name="android:statusBarColor">@color/sync_canvas</item>
+        <item name="android:navigationBarColor">@color/sync_canvas</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
     </style>
 </resources>

@@ -1,0 +1,13 @@
+<resources>
+    <color name="sync_canvas">#F6F3EB</color>
+    <color name="sync_surface">#FFFCF5</color>
+    <color name="sync_ink">#22211D</color>
+    <color name="sync_muted">#645E50</color>
+    <color name="sync_line">#E1DAC9</color>
+    <color name="sync_gold">#F2C94C</color>
+    <color name="sync_gold_ink">#705100</color>
+    <color name="sync_green">#306044</color>
+    <color name="sync_log">#27251F</color>
+    <color name="sync_log_text">#E7DECB</color>
+    <color name="sync_icon_bg">#F8EEDB</color>
+</resources>

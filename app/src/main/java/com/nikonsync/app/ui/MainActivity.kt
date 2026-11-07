@@ -6,7 +6,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
 import android.content.pm.PackageManager
-import android.graphics.Color
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -27,6 +26,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnConnect: Button
     private lateinit var btnShutter: Button
     private lateinit var ivLastPhoto: ImageView
+    private lateinit var photoSection: View
     private lateinit var tvLogConsole: TextView
 
     private var syncService: PhotoSyncService? = null
@@ -36,29 +36,28 @@ class MainActivity : AppCompatActivity() {
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
             val binder = service as PhotoSyncService.LocalBinder
             syncService = binder.getService()
-            isBound = true
 
             syncService?.onStatusChanged = { msg ->
                 runOnUiThread {
+                    if (isDestroyed) return@runOnUiThread
                     appendLog(msg)
-                    updateConnectionUI(syncService?.isCameraConnected == true)
+                    updateConnectionUI()
                 }
             }
 
             syncService?.onNewPhotoSaved = { uriString ->
                 runOnUiThread {
-                    ivLastPhoto.visibility = View.VISIBLE
-                    ivLastPhoto.setImageURI(Uri.parse(uriString))
+                    if (!isDestroyed) showPhoto(uriString)
                 }
             }
 
-            updateConnectionUI(syncService?.isCameraConnected == true)
+            syncService?.lastPhotoUri?.let(::showPhoto)
+            updateConnectionUI()
         }
 
         override fun onServiceDisconnected(name: ComponentName?) {
             syncService = null
-            isBound = false
-            updateConnectionUI(false)
+            updateConnectionUI()
         }
     }
 
@@ -89,27 +88,33 @@ class MainActivity : AppCompatActivity() {
         btnConnect = findViewById(R.id.btnConnect)
         btnShutter = findViewById(R.id.btnShutter)
         ivLastPhoto = findViewById(R.id.ivLastPhoto)
+        photoSection = findViewById(R.id.photoSection)
         tvLogConsole = findViewById(R.id.tvLogConsole)
+        val preferences = getPreferences(Context.MODE_PRIVATE)
+        etCameraIp.setText(preferences.getString("camera_ip", getString(R.string.default_ip)))
 
         btnConnect.setOnClickListener {
-            val isConnected = syncService?.isCameraConnected == true
+            val service = syncService ?: return@setOnClickListener
+            if (service.isConnecting) return@setOnClickListener
+            val isConnected = service.isCameraConnected
             if (isConnected) {
                 val stopIntent = Intent(this, PhotoSyncService::class.java).apply {
                     action = PhotoSyncService.ACTION_STOP_SYNC
                 }
                 startService(stopIntent)
-                updateConnectionUI(false)
+                btnConnect.isEnabled = false
+                btnShutter.isEnabled = false
             } else {
-                val ip = etCameraIp.text.toString().trim().ifEmpty { "192.168.0.1" }
+                val ip = etCameraIp.text.toString().trim().ifEmpty { getString(R.string.default_ip) }
+                etCameraIp.setText(ip)
+                etCameraIp.clearFocus()
+                preferences.edit().putString("camera_ip", ip).apply()
                 val startIntent = Intent(this, PhotoSyncService::class.java).apply {
                     action = PhotoSyncService.ACTION_START_SYNC
                     putExtra(PhotoSyncService.EXTRA_CAMERA_IP, ip)
                 }
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    startForegroundService(startIntent)
-                } else {
-                    startService(startIntent)
-                }
+                startForegroundService(startIntent)
+                updateConnectionUI(connecting = true)
             }
         }
 
@@ -119,22 +124,25 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun updateConnectionUI(connected: Boolean) {
-        if (connected) {
-            tvStatusBadge.text = "● 已连接"
-            tvStatusBadge.setTextColor(Color.parseColor("#4CAF50"))
-            tvStatusText.text = "已与相机建立 PTP 会话，拍摄将自动同步"
-            btnConnect.text = "断开相机连接"
-            btnConnect.setBackgroundColor(Color.parseColor("#E53935"))
-            btnShutter.isEnabled = true
-        } else {
-            tvStatusBadge.text = "○ 未连接"
-            tvStatusBadge.setTextColor(Color.parseColor("#888888"))
-            tvStatusText.text = "请确保手机已连接尼康相机 Wi-Fi (如 Z30_xxx)"
-            btnConnect.text = "开始连接"
-            btnConnect.setBackgroundColor(Color.parseColor("#1976D2"))
-            btnShutter.isEnabled = false
+    private fun updateConnectionUI(connecting: Boolean = syncService?.isConnecting == true) {
+        val connected = syncService?.isCameraConnected == true
+        val (label, hint, color) = when {
+            connecting -> Triple(R.string.connecting, R.string.connecting_hint, R.color.sync_gold_ink)
+            connected -> Triple(R.string.connected, R.string.connected_hint, R.color.sync_green)
+            else -> Triple(R.string.idle, R.string.wifi_hint, R.color.sync_muted)
         }
+        tvStatusBadge.setText(label)
+        tvStatusBadge.setTextColor(ContextCompat.getColor(this, color))
+        tvStatusText.setText(hint)
+        btnConnect.setText(if (connected) R.string.disconnect else R.string.connect)
+        btnConnect.isEnabled = syncService != null && !connecting
+        btnShutter.isEnabled = connected && !connecting
+        etCameraIp.isEnabled = !connected && !connecting
+    }
+
+    private fun showPhoto(uriString: String) {
+        ivLastPhoto.setImageURI(Uri.parse(uriString))
+        photoSection.visibility = View.VISIBLE
     }
 
     private fun appendLog(msg: String) {
@@ -151,7 +159,6 @@ class MainActivity : AppCompatActivity() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
             needed.add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
         }
-        needed.add(Manifest.permission.ACCESS_FINE_LOCATION)
 
         val ungranted = needed.filter {
             ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
@@ -164,12 +171,14 @@ class MainActivity : AppCompatActivity() {
 
     private fun bindSyncService() {
         val intent = Intent(this, PhotoSyncService::class.java)
-        bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
+        isBound = bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
     }
 
     override fun onDestroy() {
         super.onDestroy()
         if (isBound) {
+            syncService?.onStatusChanged = null
+            syncService?.onNewPhotoSaved = null
             unbindService(serviceConnection)
             isBound = false
         }

@@ -17,7 +17,6 @@ import androidx.core.app.NotificationCompat
 import com.nikonsync.app.ptp.NikonPtpClient
 import com.nikonsync.app.ui.MainActivity
 import kotlinx.coroutines.*
-import java.io.OutputStream
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -37,11 +36,15 @@ class PhotoSyncService : Service() {
     private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private var ptpClient: NikonPtpClient? = null
 
-    var isCameraConnected = false
+    @Volatile var isCameraConnected = false
+        private set
+    @Volatile var isConnecting = false
+        private set
+    @Volatile var lastPhotoUri: String? = null
         private set
 
-    var onStatusChanged: ((message: String) -> Unit)? = null
-    var onNewPhotoSaved: ((uriString: String) -> Unit)? = null
+    @Volatile var onStatusChanged: ((message: String) -> Unit)? = null
+    @Volatile var onNewPhotoSaved: ((uriString: String) -> Unit)? = null
 
     inner class LocalBinder : Binder() {
         fun getService(): PhotoSyncService = this@PhotoSyncService
@@ -70,7 +73,10 @@ class PhotoSyncService : Service() {
         return START_STICKY
     }
 
-    fun startSync(ip: String = "192.168.0.1") {
+    private fun startSync(ip: String) {
+        if (isConnecting || isCameraConnected) return
+        isConnecting = true
+        onStatusChanged?.invoke("正在连接相机 $ip…")
         serviceScope.launch {
             ptpClient?.disconnect()
             val client = NikonPtpClient(host = ip)
@@ -78,6 +84,7 @@ class PhotoSyncService : Service() {
 
             client.onConnectionStateChanged = { connected, msg ->
                 isCameraConnected = connected
+                isConnecting = false
                 onStatusChanged?.invoke(msg)
                 updateNotification(msg)
             }
@@ -111,6 +118,7 @@ class PhotoSyncService : Service() {
         ptpClient?.disconnect()
         ptpClient = null
         isCameraConnected = false
+        isConnecting = false
         onStatusChanged?.invoke("已与相机断开连接")
     }
 
@@ -142,6 +150,7 @@ class PhotoSyncService : Service() {
                 }
 
                 Log.i(TAG, "Photo saved successfully to gallery: $uri ($filename)")
+                lastPhotoUri = uri.toString()
                 onStatusChanged?.invoke("照片已实时保存到手机相册: $filename")
                 onNewPhotoSaved?.invoke(uri.toString())
             }

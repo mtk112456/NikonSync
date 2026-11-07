@@ -1,3 +1,20 @@
 <resources>
     <string name="app_name">NikonSync</string>
+    <string name="eyebrow">CAMERA LINK</string>
+    <string name="subtitle">无线照片同传</string>
+    <string name="idle">未连接</string>
+    <string name="connecting">连接中</string>
+    <string name="connected">已连接</string>
+    <string name="wifi_hint">先在手机的 WLAN 设置中连接相机热点。</string>
+    <string name="connecting_hint">正在与相机建立连接，请稍候。</string>
+    <string name="connected_hint">拍摄后，照片会自动传到手机相册。</string>
+    <string name="connection_title">相机连接</string>
+    <string name="ip_label">相机地址</string>
+    <string name="default_ip">192.168.0.1</string>
+    <string name="connect">连接相机</string>
+    <string name="disconnect">断开连接</string>
+    <string name="shutter">远程快门</string>
+    <string name="latest_photo">最近同步的照片</string>
+    <string name="logs">连接日志</string>
+    <string name="log_ready">等待连接相机。</string>
 </resources>
