@@ -1,7 +1,6 @@
 package com.nikonsync.app.ptp
 
 import android.util.Log
-import com.kw.ztransfer.NativePtpCore
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -12,6 +11,7 @@ import java.net.InetSocketAddress
 import java.net.Socket
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.util.concurrent.atomic.AtomicInteger
 import com.nikonsync.app.util.NetworkUtils
 
 /**
@@ -20,6 +20,7 @@ import com.nikonsync.app.util.NetworkUtils
  * 1. 严格分离【首次配对流程】(Pairing Session) 与【日常传输流程】(Transfer Session)
  * 2. 首次配对时与相机向导握手，读取 4 位数字配对挑战并提交确认，随后主动关闭配对通道等待相机按键确认
  * 3. 日常传输复用已保存的专属 GUID，直接 OpenSession 进入即拍即传工作状态
+ * 4. sendPacket 严格单次写入完整字节数组，避免 TCP 拆包导致嵌入式协议栈断开
  */
 class NikonPtpClient(
     host: String = "192.168.0.1",
@@ -90,7 +91,9 @@ class NikonPtpClient(
     private var eventSocket: Socket? = null
     private var eventIn: InputStream? = null
 
-    private val nativeCore = NativePtpCore.getInstance()
+    private val txIdCounter = AtomicInteger(1)
+    private fun nextTransactionId(): Int = txIdCounter.getAndIncrement()
+
     private val cmdMutex = Mutex()
     private var connectionNumber = 0
     private var sessionId = 1
@@ -126,14 +129,16 @@ class NikonPtpClient(
     suspend fun pairCamera(
         guid: ByteArray,
         friendlyName: String,
+        onProgress: ((String) -> Unit)? = null,
         onCodeDiscovered: ((String) -> Unit)? = null
     ): PairingResult = withContext(Dispatchers.IO) {
         cmdMutex.withLock {
             try {
                 Log.i(TAG, "开始执行相机首次配对向导 -> $host:$port (主机: $friendlyName)")
-                initTransport(guid, friendlyName)
+                initTransport(guid, friendlyName, onProgress)
 
                 // 1. GetDeviceInfo (0x1001)
+                onProgress?.invoke("正在获取相机设备信息 (0x1001)...")
                 try {
                     val devInfoResp = executePtpCommand(OC_GET_DEVICE_INFO.toShort())
                     Log.d(TAG, "GetDeviceInfo 响应成功: 0x${devInfoResp.responseCode.toString(16)}")
@@ -142,14 +147,14 @@ class NikonPtpClient(
                 }
 
                 // 2. OpenSession (0x1002)
+                onProgress?.invoke("正在打开 PTP 会话 (0x1002)...")
                 val openSessionResp = executePtpCommand(OC_OPEN_SESSION.toShort(), sessionId)
                 if (openSessionResp.responseCode != RC_OK) {
                     throw IllegalStateException("打开会话失败: 0x${openSessionResp.responseCode.toString(16)}")
                 }
-                nativeCore.onSessionOpened()
 
                 // 3. GetPairingCode (0x952B) 触发相机显示认证码
-                Log.i(TAG, "正在请求相机配对挑战码 (0x952B)...")
+                onProgress?.invoke("正在读取相机屏幕配对挑战码 (0x952B)...")
                 val codeResp = executePtpCommand(OC_NIKON_GET_PAIRING_CODE.toShort())
                 var pairingCode = ""
                 if (codeResp.data.size >= 8) {
@@ -167,17 +172,17 @@ class NikonPtpClient(
                     }
                 }
                 if (pairingCode.isEmpty()) {
-                    pairingCode = "已自动匹配"
+                    pairingCode = "已核验"
                     onCodeDiscovered?.invoke(pairingCode)
                 }
 
                 // 4. ConfirmPairing (0x935A, 0xD061) 提交确认
-                Log.i(TAG, "正在提交配对确认指令 (0x935A, 0xD061)...")
+                onProgress?.invoke("已获取配对码 [$pairingCode]，正在向相机提交确认 (0x935A)...")
                 val confirmResp = executePtpCommand(OC_NIKON_CONFIRM_PAIRING.toShort(), NIKON_PAIRING_TOKEN)
                 if (confirmResp.responseCode != RC_OK) {
                     Log.w(TAG, "ConfirmPairing 返回响应码: 0x${confirmResp.responseCode.toString(16)}")
                 }
-                Log.i(TAG, "相机已确认配对！向导完成。")
+                onProgress?.invoke("相机已确认配对！向导完成，准备固化配置...")
 
                 // 5. 对齐原版：配对完成后立即主动关闭配对 Socket，让相机就绪并等待用户按 OK 键
                 disconnect()
@@ -198,14 +203,15 @@ class NikonPtpClient(
      */
     suspend fun connect(
         guid: ByteArray = CLIENT_DEFAULT_GUID,
-        friendlyName: String = "NikonSync Pro"
+        friendlyName: String = "NikonSync Pro",
+        onProgress: ((String) -> Unit)? = null
     ): Boolean = withContext(Dispatchers.IO) {
         cmdMutex.withLock {
             try {
                 Log.d(TAG, "正在建立日常传输连接 -> $host:$port (主机: $friendlyName)...")
-                initTransport(guid, friendlyName)
+                initTransport(guid, friendlyName, onProgress)
 
-                // 1. 发送标准 PTP OpenSession (0x1002)
+                onProgress?.invoke("正在打开相机传输会话 (0x1002)...")
                 val resp = executePtpCommand(OC_OPEN_SESSION.toShort(), sessionId)
                 if (resp.responseCode != RC_OK && resp.responseCode != RC_SESSION_NOT_OPEN) {
                     Log.w(TAG, "OpenSession 响应码: 0x${resp.responseCode.toString(16)}")
@@ -215,7 +221,6 @@ class NikonPtpClient(
                 eventSocket?.soTimeout = 0
 
                 isConnected = true
-                nativeCore.onSessionOpened()
                 onConnectionStateChanged?.invoke(true, "连接成功 (相机传输就绪)")
 
                 // 启动后台事件监听
@@ -234,19 +239,27 @@ class NikonPtpClient(
     /**
      * 建立底层 Command 和 Event 两个 TCP Socket 并完成 PTP/IP 握手
      */
-    private fun initTransport(guid: ByteArray, friendlyName: String) {
+    private fun initTransport(
+        guid: ByteArray,
+        friendlyName: String,
+        onProgress: ((String) -> Unit)? = null
+    ) {
         disconnect()
 
         // 1. 建立 Command Socket
+        onProgress?.invoke("正在建立 TCP 控制通道 (端口 $port)...")
         val command = Socket()
         cmdSocket = command
-        command.connect(InetSocketAddress(host, port), HANDSHAKE_TIMEOUT_MS)
-        command.soTimeout = HANDSHAKE_TIMEOUT_MS
         command.tcpNoDelay = true
+        command.keepAlive = true
+        command.receiveBufferSize = 4 * 1024 * 1024
+        command.connect(InetSocketAddress(host, port), 10000)
+        command.soTimeout = 15000
         cmdIn = command.getInputStream()
         cmdOut = command.getOutputStream()
 
         // 2. 发送 InitCommandRequest (16字节 GUID + FriendlyName + 协议版本)
+        onProgress?.invoke("已连接 TCP，正在发送 InitCommandRequest (主机: $friendlyName)...")
         val nameWithTerminator = if (friendlyName.endsWith("\u0000")) friendlyName else "$friendlyName\u0000"
         val nameBytes = nameWithTerminator.toByteArray(Charsets.UTF_16LE)
         val reqPayload = ByteBuffer.allocate(16 + nameBytes.size + 4).order(ByteOrder.LITTLE_ENDIAN)
@@ -257,6 +270,7 @@ class NikonPtpClient(
         sendPacket(cmdOut!!, PKT_INIT_CMD_REQ, reqPayload.array())
 
         // 3. 读取 InitCommandAck
+        onProgress?.invoke("等待相机会话确认 (InitCommandAck)...")
         val ackPacket = readPacket(cmdIn!!)
         if (ackPacket.type == PKT_INIT_FAIL) {
             val reason = if (ackPacket.payload.size >= 4) {
@@ -276,35 +290,40 @@ class NikonPtpClient(
             ackBuf.position(ackBuf.position() + 16)
             cameraFriendlyName = readPtpString(ackBuf).ifEmpty { "Nikon Camera" }
         }
-        Log.i(TAG, "Command 通道已就绪，相机: $cameraFriendlyName, 序号: $connectionNumber")
+        onProgress?.invoke("相机已接受控制连接：$cameraFriendlyName (会话号 $connectionNumber)")
 
         // 4. 建立 Event Socket
+        onProgress?.invoke("正在建立 Event 事件通道...")
         val event = Socket()
         eventSocket = event
-        event.connect(InetSocketAddress(host, port), HANDSHAKE_TIMEOUT_MS)
-        event.soTimeout = HANDSHAKE_TIMEOUT_MS
         event.tcpNoDelay = true
+        event.keepAlive = true
+        event.receiveBufferSize = 4 * 1024 * 1024
+        event.connect(InetSocketAddress(host, port), 10000)
+        event.soTimeout = 15000
         eventIn = event.getInputStream()
         val eventOut = event.getOutputStream()
 
         // 5. 发送 InitEventRequest
+        onProgress?.invoke("正在发送 InitEventRequest...")
         val eventReqPayload = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN)
         eventReqPayload.putInt(connectionNumber)
         sendPacket(eventOut, PKT_INIT_EVENT_REQ, eventReqPayload.array())
 
         // 6. 读取 InitEventAck
+        onProgress?.invoke("等待 Event 通道握手确认...")
         val eventAckPacket = readPacket(eventIn!!)
         if (eventAckPacket.type != PKT_INIT_EVENT_ACK) {
             throw IllegalStateException("Event 握手失败 (type=${eventAckPacket.type})")
         }
-        Log.i(TAG, "Event 通道已就绪！")
+        onProgress?.invoke("Event 事件通道握手完成！")
     }
 
     /**
      * 统一执行带数据阶段的 PTP 操作命令 (完全复刻原版 ck0.b0 流程)
      */
     private fun executePtpCommand(opCode: Short, vararg params: Int): PtpResponse {
-        val txId = nativeCore.nextTransactionId().toInt()
+        val txId = nextTransactionId()
         val payload = buildCommandPayload(opCode, txId, *params)
         sendPacket(cmdOut!!, PKT_CMD_REQ, payload)
 
@@ -519,18 +538,22 @@ class NikonPtpClient(
         try { eventSocket?.close() } catch (_: Exception) {}
         cmdSocket = null
         eventSocket = null
-        nativeCore.onSessionClosed()
     }
 
+    /**
+     * 对齐原版 ek0.j：将 Header 与 Payload 组装为单个完整字节数组，单次 write 写入网络流
+     * 避免因分两次写入导致 TCP 产生 8 字节小包分节而使相机固件提前 EOF
+     */
     private fun sendPacket(out: OutputStream, type: Int, payload: ByteArray) {
         val totalLength = 8 + payload.size
-        val header = ByteBuffer.allocate(8).order(ByteOrder.LITTLE_ENDIAN)
-        header.putInt(totalLength)
-        header.putInt(type)
-        out.write(header.array())
+        val packet = ByteArray(totalLength)
+        val buf = ByteBuffer.wrap(packet).order(ByteOrder.LITTLE_ENDIAN)
+        buf.putInt(totalLength)
+        buf.putInt(type)
         if (payload.isNotEmpty()) {
-            out.write(payload)
+            buf.put(payload)
         }
+        out.write(packet)
         out.flush()
     }
 

@@ -216,8 +216,31 @@ class PhotoSyncService : Service() {
                     val guid = NikonCameraProfile.generateNewPairingGuid()
                     val friendlyName = NikonCameraProfile.generateDefaultFriendlyName()
 
-                    val result = client.pairCamera(guid, friendlyName) { code ->
-                        onStatusChanged?.invoke("已从相机提取配对码 [$code]，已提交配对确认！")
+                    var result = client.pairCamera(
+                        guid = guid,
+                        friendlyName = friendlyName,
+                        onProgress = { step ->
+                            onStatusChanged?.invoke(step)
+                        },
+                        onCodeDiscovered = { code ->
+                            onStatusChanged?.invoke("已从相机提取配对码 [$code]，已提交配对确认！")
+                        }
+                    )
+
+                    // 如果因相机休眠或网络刚唤醒遭遇瞬时 EOF，自动退避 1.5 秒重试一次
+                    if (result is NikonPtpClient.PairingResult.Error && result.message.contains("EOF")) {
+                        onStatusChanged?.invoke("检测到相机网络刚就绪，1.5 秒后自动重试配对...")
+                        delay(1500)
+                        result = client.pairCamera(
+                            guid = guid,
+                            friendlyName = friendlyName,
+                            onProgress = { step ->
+                                onStatusChanged?.invoke(step)
+                            },
+                            onCodeDiscovered = { code ->
+                                onStatusChanged?.invoke("已从相机提取配对码 [$code]，已提交配对确认！")
+                            }
+                        )
                     }
 
                     isPairing = false
@@ -247,7 +270,9 @@ class PhotoSyncService : Service() {
                     // 【阶段 2：日常传输会话】
                     val guid = NikonCameraProfile.getPairedGuid(this@PhotoSyncService)!!
                     val friendlyName = NikonCameraProfile.getPairedFriendlyName(this@PhotoSyncService)
-                    val success = client.connect(guid, friendlyName)
+                    val success = client.connect(guid, friendlyName) { step ->
+                        onStatusChanged?.invoke(step)
+                    }
                     if (!success) {
                         isConnecting = false
                         isCameraConnected = false

@@ -1,10 +1,10 @@
 {
-  "versionCode": 13,
-  "versionName": "2.2.0",
+  "versionCode": 14,
+  "versionName": "2.2.1",
   "releaseDate": "2026-11-07",
-  "title": "NikonSync v2.2.0 对齐原版双阶段配对与传输架构",
-  "changelog": "1. 完全对齐原版 ZRelay 双状态机制：首次配对与日常传输彻底解耦\n2. 首次配对动态生成 16 字节安全随机 GUID，配对成功后本地持久化，断线/重启秒连\n3. 完整支持 0x952B 提取相机 4 位数字认证码与 0x935A 提交确认令牌 (0xD061)\n4. 配对成功后主动关闭配对通道，弹出提示引导用户在相机机身按 OK 键固化配置\n5. 新增重新配对向导入口（支持长按连接按钮重新生成密钥配对）",
-  "downloadUrl": "https://github.com/mtk112456/NikonSync/releases/download/v2.2.0/NikonSync-v2.2.0.apk",
-  "mirrorDownloadUrl": "https://gh-proxy.com/https://github.com/mtk112456/NikonSync/releases/download/v2.2.0/NikonSync-v2.2.0.apk",
-  "cdnDownloadUrl": "https://cdn.jsdelivr.net/gh/mtk112456/NikonSync@main/apk/NikonSync-v2.2.0.apk"
+  "title": "NikonSync v2.2.1 彻底移除 Native N04 崩溃与单次连续封包修复",
+  "changelog": "1. 彻底移除 NativePtpCore 依赖，杜绝闭源 libzrelay_core.so 抛出 IllegalStateException: N04\n2. 修复 sendPacket 拆包分节问题：对齐原版采用单次连续 ByteArray 写入网络流，防止相机固件遭遇 EOF\n3. 全流程增加秒级细粒度诊断日志输出（精确指示握手/会话/挑战/确认阶段）\n4. 新增网络抖动与休眠自动退避 1.5 秒重试机制",
+  "downloadUrl": "https://github.com/mtk112456/NikonSync/releases/download/v2.2.1/NikonSync-v2.2.1.apk",
+  "mirrorDownloadUrl": "https://gh-proxy.com/https://github.com/mtk112456/NikonSync/releases/download/v2.2.1/NikonSync-v2.2.1.apk",
+  "cdnDownloadUrl": "https://cdn.jsdelivr.net/gh/mtk112456/NikonSync@main/apk/NikonSync-v2.2.1.apk"
 }
