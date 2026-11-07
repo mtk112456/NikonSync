@@ -1,9 +1,9 @@
 {
-  "versionCode": 4,
-  "versionName": "2.1.1",
+  "versionCode": 5,
+  "versionName": "2.1.2",
   "releaseDate": "2026-11-07",
-  "title": "NikonSync v2.1.1 性能与控制台防刷屏优化版",
-  "changelog": "1. 彻底解决运行日志自动刷屏问题 (限制重连重试轮次并加入日志去重)\n2. 官方签名锁定统一 (永久有效，告别签名不一致报错)\n3. 连上相机 Wi-Fi 智能秒级自动连接\n4. 相机休眠唤醒自动恢复长连接与即拍即传",
-  "downloadUrl": "https://github.com/mtk112456/NikonSync/releases/download/v2.1.1/NikonSync-v2.1.1.apk",
-  "mirrorDownloadUrl": "https://ghproxy.net/https://github.com/mtk112456/NikonSync/releases/download/v2.1.1/NikonSync-v2.1.1.apk"
+  "title": "NikonSync v2.1.2 尼康 Z30 专属操作指南与不断网模式版",
+  "changelog": "1. 彻底修正配对指南为尼康 Z30 真实菜单路径 (【设定菜单】扳手图标，废除不存在的网络菜单)\n2. 新增局域网同网段与手机热点连接指南 (实现手机全程不断网、不断现有 Wi-Fi)\n3. 优化主界面相机 IP 输入与提示，支持连接局域网微单\n4. 官方永久证书锁定，稳定覆盖更新",
+  "downloadUrl": "https://github.com/mtk112456/NikonSync/releases/download/v2.1.2/NikonSync-v2.1.2.apk",
+  "mirrorDownloadUrl": "https://ghproxy.net/https://github.com/mtk112456/NikonSync/releases/download/v2.1.2/NikonSync-v2.1.2.apk"
 }

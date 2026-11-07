@@ -142,8 +142,8 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="10dp"
                 android:labelFor="@+id/etCameraIp"
-                android:text="@string/ip_label"
-                android:textSize="13sp"
+                android:text="相机 IP 地址 (直连热点默认 192.168.0.1 / 家用Wi-Fi请输入局域网IP)"
+                android:textSize="12sp"
                 android:textColor="@color/sync_muted" />
 
             <EditText
@@ -162,6 +162,14 @@
                 android:inputType="textUri"
                 android:singleLine="true"
                 android:imeOptions="actionDone" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text="💡 提示：若让相机连家里Wi-Fi实现不断网，请在相机[连接到计算机]>[网络设定]>[TCP/IP]中查看相机IP并在此输入。"
+                android:textSize="11sp"
+                android:textColor="#E65100" />
 
             <!-- 传输格式筛选 -->
             <TextView
