@@ -21,6 +21,7 @@ import com.nikonsync.app.R
 import com.nikonsync.app.service.BluetoothGpsRelayService
 import com.nikonsync.app.service.PhotoSyncService
 import com.nikonsync.app.update.AppUpdateManager
+import com.nikonsync.app.util.NetworkUtils
 
 class MainActivity : AppCompatActivity() {
 
@@ -33,6 +34,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var rbFormatJpg: RadioButton
     private lateinit var rbFormatAll: RadioButton
     private lateinit var rbFormatRaw: RadioButton
+    private lateinit var switchAutoConnect: SwitchCompat
     private lateinit var btnConnect: Button
     private lateinit var btnShutter: Button
     private lateinit var btnOpenGallery: MaterialButton
@@ -66,7 +68,22 @@ class MainActivity : AppCompatActivity() {
             }
 
             syncService?.lastPhotoUri?.let(::showPhoto)
+            if (::switchAutoConnect.isInitialized) {
+                syncService?.isAutoReconnectEnabled = switchAutoConnect.isChecked
+            }
             updateConnectionUI()
+
+            // 服务就绪后，若已开启自动连接且当前连上了 Wi-Fi，立即自动发起连接
+            if (::switchAutoConnect.isInitialized && switchAutoConnect.isChecked) {
+                if (syncService?.isCameraConnected == false && syncService?.isConnecting == false && syncService?.isManualDisconnected == false) {
+                    if (NetworkUtils.isWifiConnected(this@MainActivity)) {
+                        val ip = etCameraIp.text.toString().trim().ifEmpty { NetworkUtils.getCameraIp(this@MainActivity) }
+                        etCameraIp.setText(ip)
+                        appendLog("检测到 Wi-Fi 已就绪，启动自动连接相机 ($ip)...")
+                        syncService?.startSync(ip, manual = false)
+                    }
+                }
+            }
         }
 
         override fun onServiceDisconnected(name: ComponentName?) {
@@ -137,6 +154,7 @@ class MainActivity : AppCompatActivity() {
         rbFormatJpg = findViewById(R.id.rbFormatJpg)
         rbFormatAll = findViewById(R.id.rbFormatAll)
         rbFormatRaw = findViewById(R.id.rbFormatRaw)
+        switchAutoConnect = findViewById(R.id.switchAutoConnect)
         btnConnect = findViewById(R.id.btnConnect)
         btnShutter = findViewById(R.id.btnShutter)
         btnOpenGallery = findViewById(R.id.btnOpenGallery)
@@ -155,6 +173,14 @@ class MainActivity : AppCompatActivity() {
             PhotoSyncService.FORMAT_ALL -> rbFormatAll.isChecked = true
             PhotoSyncService.FORMAT_RAW_ONLY -> rbFormatRaw.isChecked = true
             else -> rbFormatJpg.isChecked = true
+        }
+
+        val autoConnectSaved = prefs.getBoolean("auto_connect", true)
+        switchAutoConnect.isChecked = autoConnectSaved
+        switchAutoConnect.setOnCheckedChangeListener { _, isChecked ->
+            prefs.edit().putBoolean("auto_connect", isChecked).apply()
+            syncService?.isAutoReconnectEnabled = isChecked
+            appendLog(if (isChecked) "已开启：连上相机 Wi-Fi 时自动连接" else "已关闭自动连接")
         }
 
         rgFormatMode.setOnCheckedChangeListener { _, checkedId ->
@@ -222,14 +248,11 @@ class MainActivity : AppCompatActivity() {
             if (service.isConnecting) return@setOnClickListener
             val isConnected = service.isCameraConnected
             if (isConnected) {
-                val stopIntent = Intent(this, PhotoSyncService::class.java).apply {
-                    action = PhotoSyncService.ACTION_STOP_SYNC
-                }
-                startService(stopIntent)
-                btnConnect.isEnabled = false
-                btnShutter.isEnabled = false
+                service.stopSync(manual = true)
+                appendLog("已手动断开相机连接（自动重连已暂停）")
+                updateConnectionUI()
             } else {
-                val ip = etCameraIp.text.toString().trim().ifEmpty { getString(R.string.default_ip) }
+                val ip = etCameraIp.text.toString().trim().ifEmpty { NetworkUtils.getCameraIp(this) }
                 etCameraIp.setText(ip)
                 etCameraIp.clearFocus()
                 prefs.edit().putString("camera_ip", ip).apply()
@@ -239,6 +262,7 @@ class MainActivity : AppCompatActivity() {
                     R.id.rbFormatRaw -> PhotoSyncService.FORMAT_RAW_ONLY
                     else -> PhotoSyncService.FORMAT_JPG_ONLY
                 }
+                service.formatMode = mode
 
                 val startIntent = Intent(this, PhotoSyncService::class.java).apply {
                     action = PhotoSyncService.ACTION_START_SYNC
@@ -246,6 +270,7 @@ class MainActivity : AppCompatActivity() {
                     putExtra(PhotoSyncService.EXTRA_FORMAT_MODE, mode)
                 }
                 startForegroundService(startIntent)
+                service.startSync(ip, manual = true)
                 updateConnectionUI(connecting = true)
             }
         }
@@ -320,6 +345,22 @@ class MainActivity : AppCompatActivity() {
     private fun bindGpsService() {
         val intent = Intent(this, BluetoothGpsRelayService::class.java)
         bindService(intent, gpsConnection, Context.BIND_AUTO_CREATE)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        updateConnectionUI()
+        if (::switchAutoConnect.isInitialized && switchAutoConnect.isChecked) {
+            val service = syncService
+            if (service != null && !service.isCameraConnected && !service.isConnecting && !service.isManualDisconnected) {
+                if (NetworkUtils.isWifiConnected(this)) {
+                    val ip = etCameraIp.text.toString().trim().ifEmpty { NetworkUtils.getCameraIp(this) }
+                    etCameraIp.setText(ip)
+                    appendLog("检测到已在相机 Wi-Fi 环境，正在自动连接 ($ip)...")
+                    service.startSync(ip, manual = false)
+                }
+            }
+        }
     }
 
     override fun onDestroy() {

@@ -422,7 +422,8 @@ class NikonPtpClient(
             } catch (e: Exception) {
                 if (isConnected) {
                     Log.w(TAG, "事件通道断开: ${e.message}")
-                    onConnectionStateChanged?.invoke(false, "相机连接断开")
+                    disconnect()
+                    onConnectionStateChanged?.invoke(false, "相机连接已断开")
                 }
             }
         }

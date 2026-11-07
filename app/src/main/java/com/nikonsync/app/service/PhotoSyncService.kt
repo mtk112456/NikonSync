@@ -6,7 +6,12 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.ContentValues
+import android.content.Context
 import android.content.Intent
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.NetworkRequest
 import android.os.Binder
 import android.os.Build
 import android.os.Environment
@@ -17,11 +22,17 @@ import androidx.core.app.NotificationCompat
 import com.nikonsync.app.ptp.NikonPtpClient
 import com.nikonsync.app.ptp.PtpObjectInfo
 import com.nikonsync.app.ui.MainActivity
+import com.nikonsync.app.util.NetworkUtils
 import kotlinx.coroutines.*
-import java.text.SimpleDateFormat
-import java.util.Date
 import java.util.Locale
 
+/**
+ * 尼康相机后台长连接与即拍即传服务
+ * 支持：
+ * 1. 自动感知相机 Wi-Fi 热点连接并自动发起 PTP 握手 (零人工干预)
+ * 2. 相机睡眠唤醒或 Wi-Fi 抖动后的智能自动重连 (带重试退避)
+ * 3. 快门 ObjectAdded 监听与即拍即传 (格式过滤策略)
+ */
 class PhotoSyncService : Service() {
     companion object {
         const val TAG = "PhotoSyncService"
@@ -51,6 +62,14 @@ class PhotoSyncService : Service() {
         private set
     @Volatile var formatMode: Int = FORMAT_JPG_ONLY
 
+    // 自动重连与自动连接控制
+    @Volatile var isAutoReconnectEnabled = true
+    @Volatile var isManualDisconnected = false
+    @Volatile var currentIp: String = "192.168.0.1"
+
+    private var reconnectJob: Job? = null
+    private var networkCallback: ConnectivityManager.NetworkCallback? = null
+
     @Volatile var onStatusChanged: ((message: String) -> Unit)? = null
     @Volatile var onNewPhotoSaved: ((uriString: String) -> Unit)? = null
 
@@ -63,6 +82,7 @@ class PhotoSyncService : Service() {
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
+        registerNetworkCallback()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -70,11 +90,13 @@ class PhotoSyncService : Service() {
             ACTION_START_SYNC -> {
                 val ip = intent.getStringExtra(EXTRA_CAMERA_IP) ?: "192.168.0.1"
                 formatMode = intent.getIntExtra(EXTRA_FORMAT_MODE, FORMAT_JPG_ONLY)
+                currentIp = ip
+                isManualDisconnected = false
                 startForeground(NOTIFICATION_ID, buildNotification("正在连接尼康相机 ($ip)..."))
-                startSync(ip)
+                startSync(ip, manual = false)
             }
             ACTION_STOP_SYNC -> {
-                stopSync()
+                stopSync(manual = true)
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
             }
@@ -82,29 +104,119 @@ class PhotoSyncService : Service() {
         return START_STICKY
     }
 
-    private fun startSync(ip: String) {
-        if (isConnecting || isCameraConnected) return
-        isConnecting = true
-        onStatusChanged?.invoke("正在连接相机 $ip…")
-        serviceScope.launch {
-            ptpClient?.disconnect()
-            val client = NikonPtpClient(host = ip)
-            ptpClient = client
+    /**
+     * 注册 Wi-Fi 状态动态监听，当手机连上相机 Wi-Fi 时自动连接
+     */
+    private fun registerNetworkCallback() {
+        val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return
+        val request = NetworkRequest.Builder()
+            .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
+            .build()
 
-            client.onConnectionStateChanged = { connected, msg ->
-                isCameraConnected = connected
-                isConnecting = false
-                onStatusChanged?.invoke(msg)
-                updateNotification(msg)
-            }
-
-            client.onPhotoCaptured = { handle ->
-                serviceScope.launch {
-                    handleNewCapturedObject(client, handle)
+        val callback = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) {
+                if (isAutoReconnectEnabled && !isCameraConnected && !isConnecting) {
+                    val detectedIp = NetworkUtils.getCameraIp(this@PhotoSyncService, currentIp)
+                    currentIp = detectedIp
+                    Log.i(TAG, "Wi-Fi 已连接，探测到相机 IP: $detectedIp，准备自动连接")
+                    serviceScope.launch {
+                        delay(1200) // 等待 Wi-Fi IP 分配及相机端口响应就绪
+                        if (isAutoReconnectEnabled && !isCameraConnected && !isConnecting && !isManualDisconnected) {
+                            onStatusChanged?.invoke("检测到已连上相机 Wi-Fi，正在自动连接 ($detectedIp)...")
+                            startSyncInternal(detectedIp)
+                        }
+                    }
                 }
             }
 
-            client.connect()
+            override fun onLost(network: Network) {
+                Log.w(TAG, "Wi-Fi 网络断开")
+                if (isCameraConnected) {
+                    onStatusChanged?.invoke("Wi-Fi 已断开，等待重新连接相机热点...")
+                    stopSyncInternal(manual = false)
+                }
+            }
+        }
+
+        networkCallback = callback
+        try {
+            cm.registerNetworkCallback(request, callback)
+        } catch (e: Exception) {
+            Log.e(TAG, "注册网络回调异常: ${e.message}")
+        }
+    }
+
+    fun startSync(ip: String, manual: Boolean = false) {
+        if (manual) {
+            isManualDisconnected = false
+        }
+        currentIp = ip
+        reconnectJob?.cancel()
+        startSyncInternal(ip)
+    }
+
+    private fun startSyncInternal(ip: String) {
+        if (isConnecting || isCameraConnected) return
+        isConnecting = true
+        onStatusChanged?.invoke("正在连接相机 $ip…")
+        updateNotification("正在连接相机 ($ip)...")
+
+        serviceScope.launch {
+            try {
+                ptpClient?.disconnect()
+                val client = NikonPtpClient(host = ip)
+                ptpClient = client
+
+                client.onConnectionStateChanged = { connected, msg ->
+                    isCameraConnected = connected
+                    isConnecting = false
+                    onStatusChanged?.invoke(msg)
+                    updateNotification(msg)
+
+                    if (!connected && isAutoReconnectEnabled && !isManualDisconnected) {
+                        scheduleReconnect()
+                    }
+                }
+
+                client.onPhotoCaptured = { handle ->
+                    serviceScope.launch {
+                        handleNewCapturedObject(client, handle)
+                    }
+                }
+
+                val success = client.connect()
+                if (!success && isAutoReconnectEnabled && !isManualDisconnected) {
+                    scheduleReconnect()
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "启动通信异常: ${e.message}", e)
+                isConnecting = false
+                isCameraConnected = false
+                if (isAutoReconnectEnabled && !isManualDisconnected) {
+                    scheduleReconnect()
+                }
+            }
+        }
+    }
+
+    /**
+     * 智能自动重试调度器
+     */
+    private fun scheduleReconnect() {
+        if (!isAutoReconnectEnabled || isManualDisconnected || isCameraConnected || isConnecting) return
+        reconnectJob?.cancel()
+        reconnectJob = serviceScope.launch {
+            delay(3000)
+            if (!isActive || isManualDisconnected || isCameraConnected || isConnecting) return@launch
+
+            if (NetworkUtils.isWifiConnected(this@PhotoSyncService)) {
+                val ip = NetworkUtils.getCameraIp(this@PhotoSyncService, currentIp)
+                currentIp = ip
+                onStatusChanged?.invoke("正在自动重新连接相机 ($ip)...")
+                startSyncInternal(ip)
+            } else {
+                onStatusChanged?.invoke("等待连上相机 Wi-Fi 热点...")
+            }
         }
     }
 
@@ -145,12 +257,22 @@ class PhotoSyncService : Service() {
         }
     }
 
-    fun stopSync() {
+    fun stopSync(manual: Boolean = false) {
+        if (manual) {
+            isManualDisconnected = true
+        }
+        reconnectJob?.cancel()
+        stopSyncInternal(manual)
+    }
+
+    private fun stopSyncInternal(manual: Boolean) {
         ptpClient?.disconnect()
         ptpClient = null
         isCameraConnected = false
         isConnecting = false
-        onStatusChanged?.invoke("已与相机断开连接")
+        val msg = if (manual) "已手动断开相机连接" else "已与相机断开连接"
+        onStatusChanged?.invoke(msg)
+        updateNotification(msg)
     }
 
     fun savePhotoToGallery(bytes: ByteArray, preferredName: String, isRaw: Boolean) {
@@ -235,7 +357,12 @@ class PhotoSyncService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
-        stopSync()
+        reconnectJob?.cancel()
+        networkCallback?.let {
+            val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+            try { cm?.unregisterNetworkCallback(it) } catch (_: Exception) {}
+        }
+        stopSync(manual = true)
         serviceScope.cancel()
     }
 }
