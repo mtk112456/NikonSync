@@ -20,10 +20,12 @@ import com.google.android.material.button.MaterialButton
 import com.nikonsync.app.R
 import com.nikonsync.app.service.BluetoothGpsRelayService
 import com.nikonsync.app.service.PhotoSyncService
+import com.nikonsync.app.update.AppUpdateManager
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var btnOpenGuide: MaterialButton
+    private lateinit var btnCheckUpdate: MaterialButton
     private lateinit var tvStatusBadge: TextView
     private lateinit var tvStatusText: TextView
     private lateinit var etCameraIp: EditText
@@ -120,10 +122,14 @@ class MainActivity : AppCompatActivity() {
         checkPermissions()
         bindSyncService()
         bindGpsService()
+
+        // 启动时静默检查远程更新
+        AppUpdateManager.checkUpdate(this, silent = true)
     }
 
     private fun initViews() {
         btnOpenGuide = findViewById(R.id.btnOpenGuide)
+        btnCheckUpdate = findViewById(R.id.btnCheckUpdate)
         tvStatusBadge = findViewById(R.id.tvStatusBadge)
         tvStatusText = findViewById(R.id.tvStatusText)
         etCameraIp = findViewById(R.id.etCameraIp)
@@ -171,6 +177,12 @@ class MainActivity : AppCompatActivity() {
         btnOpenGuide.setOnClickListener {
             val intent = Intent(this, GuideActivity::class.java)
             startActivity(intent)
+        }
+
+        // 手动检查远程 OTA 更新
+        btnCheckUpdate.setOnClickListener {
+            appendLog("正在检查最新版本...")
+            AppUpdateManager.checkUpdate(this, silent = false)
         }
 
         // 打开相机卡内画廊

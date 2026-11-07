@@ -1,0 +1,9 @@
+{
+  "versionCode": 2,
+  "versionName": "2.0.0",
+  "releaseDate": "2026-11-07",
+  "title": "NikonSync v2.0.0 全功能升级版",
+  "changelog": "1. 增加相机卡内画廊回看与九宫格批量下载\n2. 增加即拍即传格式策略 (仅JPG/全部/仅RAW)\n3. 增加低功耗蓝牙 GPS 定位实时中继\n4. 增加 Picture Control 调色与 .NP3 曲线导出\n5. 内置全景微单配对与防断网设置指南\n6. 增加应用内静默/手动远程 OTA 更新",
+  "downloadUrl": "https://github.com/mtk112456/NikonSync/releases/download/v2.0.0/NikonSync-v2.0.0.apk",
+  "mirrorDownloadUrl": "https://ghproxy.net/https://github.com/mtk112456/NikonSync/releases/download/v2.0.0/NikonSync-v2.0.0.apk"
+}
