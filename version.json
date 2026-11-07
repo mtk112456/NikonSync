@@ -1,10 +1,10 @@
 {
-  "versionCode": 10,
-  "versionName": "2.1.7",
+  "versionCode": 11,
+  "versionName": "2.1.8",
   "releaseDate": "2026-11-07",
-  "title": "NikonSync v2.1.7 全机型适配与UI优化版",
-  "changelog": "1. 界面优化：顶栏重排，应用名称独占单行不折行\n2. 全机型配对指南：完整支持尼康全系机型分类（Z9/Z8/Z6III/Zf、Z30/Z50/Zfc、Z5/Z6/Z7、D850/D780等单反）\n3. 智能网络提醒：自动检测手机 Wi-Fi 状态，处于 5G/4G 移动数据时友好提示先连 Wi-Fi\n4. 恢复核心操作指引卡片，配对流程更加清晰顺畅",
-  "downloadUrl": "https://github.com/mtk112456/NikonSync/releases/download/v2.1.7/NikonSync-v2.1.7.apk",
-  "mirrorDownloadUrl": "https://ghfast.top/https://github.com/mtk112456/NikonSync/releases/download/v2.1.7/NikonSync-v2.1.7.apk",
-  "cdnDownloadUrl": "https://cdn.jsdelivr.net/gh/mtk112456/NikonSync@main/apk/NikonSync-v2.1.7.apk"
+  "title": "NikonSync v2.1.8 修复握手缓冲与配对确认",
+  "changelog": "1. 修复底层 PTP 命令通道会话建立缓冲溢出导致连接失败的严重缺陷\n2. 握手与配对等待超时从 5 秒提升至 60 秒，保证在相机上按 OK 确认配对顺畅连通\n3. 优化错误异常信息展示，避免出现空异常信息",
+  "downloadUrl": "https://github.com/mtk112456/NikonSync/releases/download/v2.1.8/NikonSync-v2.1.8.apk",
+  "mirrorDownloadUrl": "https://ghfast.top/https://github.com/mtk112456/NikonSync/releases/download/v2.1.8/NikonSync-v2.1.8.apk",
+  "cdnDownloadUrl": "https://cdn.jsdelivr.net/gh/mtk112456/NikonSync@main/apk/NikonSync-v2.1.8.apk"
 }

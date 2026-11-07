@@ -26,7 +26,7 @@ class NikonPtpClient(
     val host: String = NetworkUtils.normalizeIp(host)
     companion object {
         private const val TAG = "NikonPtpClient"
-        private const val HANDSHAKE_TIMEOUT_MS = 5000
+        private const val HANDSHAKE_TIMEOUT_MS = 60000 // 握手与配对等待超时 60 秒，保证用户有充足时间在相机上按 OK 确认配对
 
         // PTP/IP 数据包类型
         const val PKT_INIT_CMD_REQ = 1
@@ -167,22 +167,30 @@ class NikonPtpClient(
             startEventListener()
             true
         } catch (e: Exception) {
-            Log.e(TAG, "连接相机异常: ${e.message}", e)
+            val errorMsg = e.message ?: e.javaClass.simpleName
+            Log.e(TAG, "连接相机异常: $errorMsg", e)
             disconnect()
-            onConnectionStateChanged?.invoke(false, "连接失败: ${e.message}")
+            onConnectionStateChanged?.invoke(false, "连接失败: $errorMsg")
             false
         }
     }
 
+    private fun buildCommandPayload(opCode: Short, txId: Int, vararg params: Int): ByteArray {
+        val size = 4 + 2 + 4 + (params.size * 4)
+        val buf = ByteBuffer.allocate(size).order(ByteOrder.LITTLE_ENDIAN)
+        buf.putInt(1) // Data Phase Info (1 = No Data / Command)
+        buf.putShort(opCode)
+        buf.putInt(txId)
+        for (p in params) {
+            buf.putInt(p)
+        }
+        return buf.array()
+    }
+
     private fun openSessionInternal() {
         val txId = nativeCore.nextTransactionId().toInt()
-        val payload = ByteBuffer.allocate(12).order(ByteOrder.LITTLE_ENDIAN)
-        payload.putInt(1)
-        payload.putShort(OC_OPEN_SESSION.toShort())
-        payload.putInt(txId)
-        payload.putInt(sessionId)
-
-        sendPacket(cmdOut!!, PKT_CMD_REQ, payload.array())
+        val payload = buildCommandPayload(OC_OPEN_SESSION.toShort(), txId, sessionId)
+        sendPacket(cmdOut!!, PKT_CMD_REQ, payload)
         readPacket(cmdIn!!)
     }
 
@@ -191,14 +199,8 @@ class NikonPtpClient(
         cmdMutex.withLock {
             try {
                 val txId = nativeCore.nextTransactionId().toInt()
-                val payload = ByteBuffer.allocate(16).order(ByteOrder.LITTLE_ENDIAN)
-                payload.putInt(1)
-                payload.putShort(OC_INITIATE_CAPTURE.toShort())
-                payload.putInt(txId)
-                payload.putInt(0)
-                payload.putInt(0)
-
-                sendPacket(cmdOut!!, PKT_CMD_REQ, payload.array())
+                val payload = buildCommandPayload(OC_INITIATE_CAPTURE.toShort(), txId, 0, 0)
+                sendPacket(cmdOut!!, PKT_CMD_REQ, payload)
                 readPacket(cmdIn!!)
                 true
             } catch (e: Exception) {
@@ -216,15 +218,8 @@ class NikonPtpClient(
         cmdMutex.withLock {
             try {
                 val txId = nativeCore.nextTransactionId().toInt()
-                val payload = ByteBuffer.allocate(20).order(ByteOrder.LITTLE_ENDIAN)
-                payload.putInt(1)
-                payload.putShort(OC_GET_OBJECT_HANDLES.toShort())
-                payload.putInt(txId)
-                payload.putInt(storageId)
-                payload.putInt(0) // 全部格式
-                payload.putInt(0) // 根目录
-
-                sendPacket(cmdOut!!, PKT_CMD_REQ, payload.array())
+                val payload = buildCommandPayload(OC_GET_OBJECT_HANDLES.toShort(), txId, storageId, 0, 0)
+                sendPacket(cmdOut!!, PKT_CMD_REQ, payload)
 
                 val dataPacket = readPacket(cmdIn!!)
                 val handles = mutableListOf<Int>()
@@ -259,13 +254,8 @@ class NikonPtpClient(
         cmdMutex.withLock {
             try {
                 val txId = nativeCore.nextTransactionId().toInt()
-                val payload = ByteBuffer.allocate(12).order(ByteOrder.LITTLE_ENDIAN)
-                payload.putInt(1)
-                payload.putShort(OC_GET_OBJECT_INFO.toShort())
-                payload.putInt(txId)
-                payload.putInt(handle)
-
-                sendPacket(cmdOut!!, PKT_CMD_REQ, payload.array())
+                val payload = buildCommandPayload(OC_GET_OBJECT_INFO.toShort(), txId, handle)
+                sendPacket(cmdOut!!, PKT_CMD_REQ, payload)
 
                 val dataPacket = readPacket(cmdIn!!)
                 var info: PtpObjectInfo? = null
@@ -329,13 +319,8 @@ class NikonPtpClient(
         cmdMutex.withLock {
             try {
                 val txId = nativeCore.nextTransactionId().toInt()
-                val payload = ByteBuffer.allocate(12).order(ByteOrder.LITTLE_ENDIAN)
-                payload.putInt(1)
-                payload.putShort(OC_GET_THUMB.toShort())
-                payload.putInt(txId)
-                payload.putInt(handle)
-
-                sendPacket(cmdOut!!, PKT_CMD_REQ, payload.array())
+                val payload = buildCommandPayload(OC_GET_THUMB.toShort(), txId, handle)
+                sendPacket(cmdOut!!, PKT_CMD_REQ, payload)
 
                 val chunks = mutableListOf<ByteArray>()
                 var totalBytes = 0
@@ -377,13 +362,8 @@ class NikonPtpClient(
         cmdMutex.withLock {
             try {
                 val txId = nativeCore.nextTransactionId().toInt()
-                val payload = ByteBuffer.allocate(12).order(ByteOrder.LITTLE_ENDIAN)
-                payload.putInt(1)
-                payload.putShort(OC_GET_OBJECT.toShort())
-                payload.putInt(txId)
-                payload.putInt(handle)
-
-                sendPacket(cmdOut!!, PKT_CMD_REQ, payload.array())
+                val payload = buildCommandPayload(OC_GET_OBJECT.toShort(), txId, handle)
+                sendPacket(cmdOut!!, PKT_CMD_REQ, payload)
 
                 val chunks = mutableListOf<ByteArray>()
                 var totalBytes = 0
