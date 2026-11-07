@@ -114,6 +114,7 @@ object AppUpdateManager {
             append("最新版本: v${info.versionName} (${info.releaseDate})\n\n")
             append("【更新内容】\n")
             append(info.changelog)
+            append("\n\n⚠️ 提示：若覆盖更新弹出「签名不一致」，是由于手机当前驻留的是早期旧临时签名版，请长按桌面图标卸载旧版一次，即可永久正常安装与无缝更新。")
         }
 
         AlertDialog.Builder(context)

@@ -163,11 +163,41 @@
                 android:singleLine="true"
                 android:imeOptions="actionDone" />
 
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnScanLocalCamera"
+                    style="@style/Widget.Material3.Button.TonalButton"
+                    android:layout_width="0dp"
+                    android:layout_height="36dp"
+                    android:layout_weight="1"
+                    android:paddingHorizontal="8dp"
+                    android:paddingVertical="0dp"
+                    android:text="🔍 一键自动扫描局域网相机"
+                    android:textSize="12sp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnResetDefaultIp"
+                    style="@style/Widget.Material3.Button.TextButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="36dp"
+                    android:layout_marginStart="8dp"
+                    android:paddingHorizontal="6dp"
+                    android:paddingVertical="0dp"
+                    android:text="重置 192.168.0.1"
+                    android:textSize="11sp" />
+            </LinearLayout>
+
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
-                android:text="💡 提示：若让相机连家里Wi-Fi实现不断网，请在相机[连接到计算机]>[网络设定]>[TCP/IP]中查看相机IP并在此输入。"
+                android:layout_marginTop="4dp"
+                android:text="💡 模式二提示：若让相机连家里小米Wi-Fi，可点击上方「一键自动扫描」；或在相机[连接到计算机]>[网络设定]>[TCP/IP]中查看相机真实IP并在此输入（切勿输入192.168.31.1路由器IP）。"
                 android:textSize="11sp"
                 android:textColor="#E65100" />
 

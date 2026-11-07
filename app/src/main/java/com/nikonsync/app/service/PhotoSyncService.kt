@@ -91,7 +91,8 @@ class PhotoSyncService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_START_SYNC -> {
-                val ip = intent.getStringExtra(EXTRA_CAMERA_IP) ?: "192.168.0.1"
+                val rawIp = intent.getStringExtra(EXTRA_CAMERA_IP) ?: "192.168.0.1"
+                val ip = NetworkUtils.normalizeIp(rawIp)
                 formatMode = intent.getIntExtra(EXTRA_FORMAT_MODE, FORMAT_JPG_ONLY)
                 currentIp = ip
                 isManualDisconnected = false
@@ -153,13 +154,14 @@ class PhotoSyncService : Service() {
     }
 
     fun startSync(ip: String, manual: Boolean = false) {
+        val normalized = NetworkUtils.normalizeIp(ip)
         if (manual) {
             isManualDisconnected = false
             autoRetryCount = 0
         }
-        currentIp = ip
+        currentIp = normalized
         reconnectJob?.cancel()
-        startSyncInternal(ip)
+        startSyncInternal(normalized)
     }
 
     private fun startSyncInternal(ip: String) {

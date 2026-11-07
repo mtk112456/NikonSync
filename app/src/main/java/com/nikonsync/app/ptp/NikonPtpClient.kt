@@ -12,6 +12,7 @@ import java.net.Socket
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.UUID
+import com.nikonsync.app.util.NetworkUtils
 
 /**
  * 现代尼康 PTP/IP 相机通信客户端
@@ -19,9 +20,10 @@ import java.util.UUID
  * 包含双通道握手、状态监听、拍照触发、对象信息检索、缩略图获取与原图流下载
  */
 class NikonPtpClient(
-    val host: String = "192.168.0.1",
+    rawHost: String = "192.168.0.1",
     val port: Int = 15740
 ) {
+    val host: String = NetworkUtils.normalizeIp(rawHost)
     companion object {
         private const val TAG = "NikonPtpClient"
         private const val HANDSHAKE_TIMEOUT_MS = 5000

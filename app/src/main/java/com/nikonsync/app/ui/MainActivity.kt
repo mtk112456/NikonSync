@@ -16,12 +16,14 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SwitchCompat
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
 import com.google.android.material.button.MaterialButton
 import com.nikonsync.app.R
 import com.nikonsync.app.service.BluetoothGpsRelayService
 import com.nikonsync.app.service.PhotoSyncService
 import com.nikonsync.app.update.AppUpdateManager
 import com.nikonsync.app.util.NetworkUtils
+import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
 
@@ -30,6 +32,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvStatusBadge: TextView
     private lateinit var tvStatusText: TextView
     private lateinit var etCameraIp: EditText
+    private lateinit var btnScanLocalCamera: MaterialButton
+    private lateinit var btnResetDefaultIp: MaterialButton
     private lateinit var rgFormatMode: RadioGroup
     private lateinit var rbFormatJpg: RadioButton
     private lateinit var rbFormatAll: RadioButton
@@ -96,7 +100,7 @@ class MainActivity : AppCompatActivity() {
             if (::switchAutoConnect.isInitialized && switchAutoConnect.isChecked) {
                 if (syncService?.isCameraConnected == false && syncService?.isConnecting == false && syncService?.isManualDisconnected == false) {
                     if (NetworkUtils.isWifiConnected(this@MainActivity)) {
-                        val ip = etCameraIp.text.toString().trim().ifEmpty { NetworkUtils.getCameraIp(this@MainActivity) }
+                        val ip = NetworkUtils.normalizeIp(etCameraIp.text.toString().trim().ifEmpty { NetworkUtils.getCameraIp(this@MainActivity) })
                         etCameraIp.setText(ip)
                         syncService?.startSync(ip, manual = false)
                     }
@@ -168,6 +172,8 @@ class MainActivity : AppCompatActivity() {
         tvStatusBadge = findViewById(R.id.tvStatusBadge)
         tvStatusText = findViewById(R.id.tvStatusText)
         etCameraIp = findViewById(R.id.etCameraIp)
+        btnScanLocalCamera = findViewById(R.id.btnScanLocalCamera)
+        btnResetDefaultIp = findViewById(R.id.btnResetDefaultIp)
         rgFormatMode = findViewById(R.id.rgFormatMode)
         rbFormatJpg = findViewById(R.id.rbFormatJpg)
         rbFormatAll = findViewById(R.id.rbFormatAll)
@@ -201,7 +207,50 @@ class MainActivity : AppCompatActivity() {
         }
 
         val prefs = getPreferences(Context.MODE_PRIVATE)
-        etCameraIp.setText(prefs.getString("camera_ip", getString(R.string.default_ip)))
+        val savedIp = prefs.getString("camera_ip", getString(R.string.default_ip)) ?: getString(R.string.default_ip)
+        etCameraIp.setText(NetworkUtils.normalizeIp(savedIp))
+
+        // 焦点离开时自动规范化 IP 格式（如清除 192.168.031.213 的前导零）
+        etCameraIp.setOnFocusChangeListener { _, hasFocus ->
+            if (!hasFocus) {
+                val normalized = NetworkUtils.normalizeIp(etCameraIp.text.toString())
+                if (normalized != etCameraIp.text.toString()) {
+                    etCameraIp.setText(normalized)
+                    prefs.edit().putString("camera_ip", normalized).apply()
+                }
+            }
+        }
+
+        // 一键局域网秒级扫描相机
+        btnScanLocalCamera.setOnClickListener {
+            lifecycleScope.launch {
+                btnScanLocalCamera.isEnabled = false
+                btnScanLocalCamera.text = "⏳ 正在极速扫描局域网..."
+                appendLog("正在并发扫描局域网内开放 15740 端口的尼康相机...")
+                val foundIp = NetworkUtils.scanLocalCamera(this@MainActivity)
+                if (foundIp != null) {
+                    val normalized = NetworkUtils.normalizeIp(foundIp)
+                    etCameraIp.setText(normalized)
+                    prefs.edit().putString("camera_ip", normalized).apply()
+                    appendLog("扫描成功！已发现相机 IP: $normalized")
+                    Toast.makeText(this@MainActivity, "成功找到局域网相机: $normalized", Toast.LENGTH_SHORT).show()
+                } else {
+                    appendLog("未扫描到开放 15740 端口的相机。请确保相机已连接 Wi-Fi 并在相机屏幕进入[连接到计算机]等待状态", isError = true)
+                    Toast.makeText(this@MainActivity, "未扫描到相机，请检查相机是否在等待连接状态", Toast.LENGTH_LONG).show()
+                }
+                btnScanLocalCamera.isEnabled = true
+                btnScanLocalCamera.text = "🔍 一键自动扫描局域网相机"
+            }
+        }
+
+        // 重置为直连默认 IP 192.168.0.1
+        btnResetDefaultIp.setOnClickListener {
+            val defaultIp = getString(R.string.default_ip)
+            etCameraIp.setText(defaultIp)
+            prefs.edit().putString("camera_ip", defaultIp).apply()
+            appendLog("已重置相机 IP 为默认直连热点地址: $defaultIp")
+            Toast.makeText(this, "已重置为 $defaultIp", Toast.LENGTH_SHORT).show()
+        }
 
         val savedFormat = prefs.getInt("format_mode", PhotoSyncService.FORMAT_JPG_ONLY)
         when (savedFormat) {
@@ -250,7 +299,8 @@ class MainActivity : AppCompatActivity() {
 
         // 打开相机卡内画廊
         btnOpenGallery.setOnClickListener {
-            val ip = etCameraIp.text.toString().trim().ifEmpty { getString(R.string.default_ip) }
+            val rawIp = etCameraIp.text.toString().trim().ifEmpty { getString(R.string.default_ip) }
+            val ip = NetworkUtils.normalizeIp(rawIp)
             val intent = Intent(this, GalleryActivity::class.java).apply {
                 putExtra(GalleryActivity.EXTRA_CAMERA_IP, ip)
             }
@@ -289,7 +339,8 @@ class MainActivity : AppCompatActivity() {
                 appendLog("已手动断开相机连接（自动重连已暂停）")
                 updateConnectionUI()
             } else {
-                val ip = etCameraIp.text.toString().trim().ifEmpty { NetworkUtils.getCameraIp(this) }
+                val rawIp = etCameraIp.text.toString().trim().ifEmpty { NetworkUtils.getCameraIp(this) }
+                val ip = NetworkUtils.normalizeIp(rawIp)
                 etCameraIp.setText(ip)
                 etCameraIp.clearFocus()
                 prefs.edit().putString("camera_ip", ip).apply()
