@@ -68,14 +68,23 @@ object AppUpdateManager {
     }
 
     private fun fetchRemoteVersionInfo(): UpdateInfo? {
-        // 先尝试国内 CDN 极速源，失败则切回官方源
-        val urls = listOf(UPDATE_URL_FAST, UPDATE_URL_RAW)
+        val t = System.currentTimeMillis()
+        // 多个国内 CDN 极速源与 GitHub 官方源（带防缓存时间戳参数）
+        val urls = listOf(
+            "https://cdn.jsdelivr.net/gh/mtk112456/NikonSync@main/version.json?t=$t",
+            "https://gcore.jsdelivr.net/gh/mtk112456/NikonSync@main/version.json?t=$t",
+            "https://fastly.jsdelivr.net/gh/mtk112456/NikonSync@main/version.json?t=$t",
+            "https://raw.githubusercontent.com/mtk112456/NikonSync/main/version.json?t=$t"
+        )
         for (urlStr in urls) {
             try {
                 val conn = URL(urlStr).openConnection() as HttpURLConnection
-                conn.connectTimeout = 5000
-                conn.readTimeout = 5000
+                conn.connectTimeout = 4000
+                conn.readTimeout = 4000
                 conn.requestMethod = "GET"
+                conn.useCaches = false
+                conn.setRequestProperty("Cache-Control", "no-cache")
+                conn.setRequestProperty("Pragma", "no-cache")
                 conn.instanceFollowRedirects = true
 
                 if (conn.responseCode == 200) {
