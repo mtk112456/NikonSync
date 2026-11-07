@@ -1,9 +1,9 @@
 {
-  "versionCode": 3,
-  "versionName": "2.1.0",
+  "versionCode": 4,
+  "versionName": "2.1.1",
   "releaseDate": "2026-11-07",
-  "title": "NikonSync v2.1.0 (开机与连Wi-Fi全自动连接版)",
-  "changelog": "1. 连上相机 Wi-Fi 热点全自动连接 (无需手动点连接按钮)\n2. 相机睡眠唤醒/断线自愈重连 (离开回来自动恢复连接)\n3. 智能探测相机网关 IP (适配各种子网 IP 分配)\n4. 增加可控的「连上 Wi-Fi 自动连接相机」总开关",
-  "downloadUrl": "https://github.com/mtk112456/NikonSync/releases/download/v2.1.0/NikonSync-v2.1.0.apk",
-  "mirrorDownloadUrl": "https://ghproxy.net/https://github.com/mtk112456/NikonSync/releases/download/v2.1.0/NikonSync-v2.1.0.apk"
+  "title": "NikonSync v2.1.1 性能与控制台防刷屏优化版",
+  "changelog": "1. 彻底解决运行日志自动刷屏问题 (限制重连重试轮次并加入日志去重)\n2. 官方签名锁定统一 (永久有效，告别签名不一致报错)\n3. 连上相机 Wi-Fi 智能秒级自动连接\n4. 相机休眠唤醒自动恢复长连接与即拍即传",
+  "downloadUrl": "https://github.com/mtk112456/NikonSync/releases/download/v2.1.1/NikonSync-v2.1.1.apk",
+  "mirrorDownloadUrl": "https://ghproxy.net/https://github.com/mtk112456/NikonSync/releases/download/v2.1.1/NikonSync-v2.1.1.apk"
 }

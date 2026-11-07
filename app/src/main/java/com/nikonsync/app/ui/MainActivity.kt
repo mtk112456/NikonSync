@@ -56,7 +56,19 @@ class MainActivity : AppCompatActivity() {
             syncService?.onStatusChanged = { msg ->
                 runOnUiThread {
                     if (isDestroyed) return@runOnUiThread
-                    appendLog(msg)
+                    tvStatusText.text = msg
+                    // 仅核心业务事件才打入底部控制台，防止重试过程反复刷屏
+                    if (msg.contains("相机连接成功") ||
+                        msg.contains("已与相机断开") ||
+                        msg.contains("已手动断开") ||
+                        msg.contains("已存入系统相册") ||
+                        msg.contains("远程快门") ||
+                        msg.contains("格式策略") ||
+                        msg.contains("连上相机 Wi-Fi") ||
+                        msg.contains("未连接到相机")
+                    ) {
+                        appendLog(msg)
+                    }
                     updateConnectionUI()
                 }
             }
@@ -290,7 +302,9 @@ class MainActivity : AppCompatActivity() {
         }
         tvStatusBadge.setText(label)
         tvStatusBadge.setTextColor(ContextCompat.getColor(this, color))
-        tvStatusText.setText(hint)
+        if (tvStatusText.text.isNullOrEmpty()) {
+            tvStatusText.setText(hint)
+        }
         btnConnect.setText(if (connected) R.string.disconnect else R.string.connect)
         btnConnect.isEnabled = syncService != null && !connecting
         btnShutter.isEnabled = connected && !connecting
@@ -302,7 +316,11 @@ class MainActivity : AppCompatActivity() {
         photoSection.visibility = View.VISIBLE
     }
 
+    private var lastLoggedMessage: String? = null
+
     private fun appendLog(msg: String) {
+        if (msg == lastLoggedMessage) return
+        lastLoggedMessage = msg
         val line = "[${android.text.format.DateFormat.format("HH:mm:ss", java.util.Date())}] $msg\n"
         tvLogConsole.append(line)
     }

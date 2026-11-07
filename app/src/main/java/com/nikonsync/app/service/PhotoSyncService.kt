@@ -67,6 +67,9 @@ class PhotoSyncService : Service() {
     @Volatile var isManualDisconnected = false
     @Volatile var currentIp: String = "192.168.0.1"
 
+    @Volatile private var autoRetryCount = 0
+    private val MAX_AUTO_RETRIES = 2
+
     private var reconnectJob: Job? = null
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
 
@@ -115,6 +118,7 @@ class PhotoSyncService : Service() {
 
         val callback = object : ConnectivityManager.NetworkCallback() {
             override fun onAvailable(network: Network) {
+                autoRetryCount = 0
                 if (isAutoReconnectEnabled && !isCameraConnected && !isConnecting) {
                     val detectedIp = NetworkUtils.getCameraIp(this@PhotoSyncService, currentIp)
                     currentIp = detectedIp
@@ -131,6 +135,8 @@ class PhotoSyncService : Service() {
 
             override fun onLost(network: Network) {
                 Log.w(TAG, "Wi-Fi 网络断开")
+                autoRetryCount = 0
+                reconnectJob?.cancel()
                 if (isCameraConnected) {
                     onStatusChanged?.invoke("Wi-Fi 已断开，等待重新连接相机热点...")
                     stopSyncInternal(manual = false)
@@ -149,6 +155,7 @@ class PhotoSyncService : Service() {
     fun startSync(ip: String, manual: Boolean = false) {
         if (manual) {
             isManualDisconnected = false
+            autoRetryCount = 0
         }
         currentIp = ip
         reconnectJob?.cancel()
@@ -158,7 +165,6 @@ class PhotoSyncService : Service() {
     private fun startSyncInternal(ip: String) {
         if (isConnecting || isCameraConnected) return
         isConnecting = true
-        onStatusChanged?.invoke("正在连接相机 $ip…")
         updateNotification("正在连接相机 ($ip)...")
 
         serviceScope.launch {
@@ -170,6 +176,9 @@ class PhotoSyncService : Service() {
                 client.onConnectionStateChanged = { connected, msg ->
                     isCameraConnected = connected
                     isConnecting = false
+                    if (connected) {
+                        autoRetryCount = 0
+                    }
                     onStatusChanged?.invoke(msg)
                     updateNotification(msg)
 
@@ -184,10 +193,7 @@ class PhotoSyncService : Service() {
                     }
                 }
 
-                val success = client.connect()
-                if (!success && isAutoReconnectEnabled && !isManualDisconnected) {
-                    scheduleReconnect()
-                }
+                client.connect()
             } catch (e: Exception) {
                 Log.e(TAG, "启动通信异常: ${e.message}", e)
                 isConnecting = false
@@ -200,19 +206,26 @@ class PhotoSyncService : Service() {
     }
 
     /**
-     * 智能自动重试调度器
+     * 智能自动重试调度器（有最大次数限制，避免无限刷屏）
      */
     private fun scheduleReconnect() {
         if (!isAutoReconnectEnabled || isManualDisconnected || isCameraConnected || isConnecting) return
+        if (autoRetryCount >= MAX_AUTO_RETRIES) {
+            onStatusChanged?.invoke("未连接到相机，等待连上相机 Wi-Fi 热点...")
+            updateNotification("未连接到相机，等待连上 Wi-Fi")
+            return
+        }
+
         reconnectJob?.cancel()
         reconnectJob = serviceScope.launch {
-            delay(3000)
+            autoRetryCount++
+            val waitSec = if (autoRetryCount == 1) 3 else 5
+            delay(waitSec * 1000L)
             if (!isActive || isManualDisconnected || isCameraConnected || isConnecting) return@launch
 
             if (NetworkUtils.isWifiConnected(this@PhotoSyncService)) {
                 val ip = NetworkUtils.getCameraIp(this@PhotoSyncService, currentIp)
                 currentIp = ip
-                onStatusChanged?.invoke("正在自动重新连接相机 ($ip)...")
                 startSyncInternal(ip)
             } else {
                 onStatusChanged?.invoke("等待连上相机 Wi-Fi 热点...")
