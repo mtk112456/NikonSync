@@ -1,10 +1,10 @@
 {
-  "versionCode": 11,
-  "versionName": "2.1.8",
+  "versionCode": 12,
+  "versionName": "2.1.9",
   "releaseDate": "2026-11-07",
-  "title": "NikonSync v2.1.8 修复握手缓冲与配对确认",
-  "changelog": "1. 修复底层 PTP 命令通道会话建立缓冲溢出导致连接失败的严重缺陷\n2. 握手与配对等待超时从 5 秒提升至 60 秒，保证在相机上按 OK 确认配对顺畅连通\n3. 优化错误异常信息展示，避免出现空异常信息",
-  "downloadUrl": "https://github.com/mtk112456/NikonSync/releases/download/v2.1.8/NikonSync-v2.1.8.apk",
-  "mirrorDownloadUrl": "https://gh-proxy.com/https://github.com/mtk112456/NikonSync/releases/download/v2.1.8/NikonSync-v2.1.8.apk",
-  "cdnDownloadUrl": "https://cdn.jsdelivr.net/gh/mtk112456/NikonSync@main/apk/NikonSync-v2.1.8.apk"
+  "title": "NikonSync v2.1.9 自动穿透尼康向导配对",
+  "changelog": "1. 完整集成尼康官方 WTU 私有配对协议 (0x952B / 0x935A)，自动穿透相机「连接向导」状态\n2. 增加 GetDeviceInfo 前置设备能力协商与链路自动复位重连\n3. 解决相机卡在「请启动计算机上的无线传输器实用程序」无法配对的根本问题",
+  "downloadUrl": "https://github.com/mtk112456/NikonSync/releases/download/v2.1.9/NikonSync-v2.1.9.apk",
+  "mirrorDownloadUrl": "https://gh-proxy.com/https://github.com/mtk112456/NikonSync/releases/download/v2.1.9/NikonSync-v2.1.9.apk",
+  "cdnDownloadUrl": "https://cdn.jsdelivr.net/gh/mtk112456/NikonSync@main/apk/NikonSync-v2.1.9.apk"
 }

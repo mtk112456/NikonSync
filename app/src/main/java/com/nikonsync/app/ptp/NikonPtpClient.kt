@@ -91,6 +91,16 @@ class NikonPtpClient(
     var onConnectionStateChanged: ((connected: Boolean, message: String) -> Unit)? = null
 
     suspend fun connect(): Boolean = withContext(Dispatchers.IO) {
+        val firstAttempt = connectInternal()
+        if (firstAttempt) return@withContext true
+
+        // 若首次连接因触发相机配对向导确认导致相机重置链路，等待 1.5 秒后自动进行二次正式连接
+        Log.i(TAG, "首次连接可能已完成相机配对向导确认，1.5 秒后自动进行二次正式连接...")
+        delay(1500)
+        connectInternal()
+    }
+
+    private suspend fun connectInternal(): Boolean = withContext(Dispatchers.IO) {
         try {
             Log.d(TAG, "正在建立相机连接 -> $host:$port...")
 
@@ -154,7 +164,7 @@ class NikonPtpClient(
             }
             Log.d(TAG, "事件通道握手成功")
 
-            // 5. 开启会话
+            // 5. 开启会话与自动化尼康向导配对
             openSessionInternal()
             command.soTimeout = 0
             event.soTimeout = 0
@@ -188,10 +198,51 @@ class NikonPtpClient(
     }
 
     private fun openSessionInternal() {
+        // 1. 尝试获取设备信息 (GetDeviceInfo 0x1001)，模拟尼康官方 WTU 先行握手
+        try {
+            val devInfoTxId = nativeCore.nextTransactionId().toInt()
+            val devInfoPayload = buildCommandPayload(OC_GET_DEVICE_INFO.toShort(), devInfoTxId)
+            sendPacket(cmdOut!!, PKT_CMD_REQ, devInfoPayload)
+            var p = readPacket(cmdIn!!)
+            while (p.type == PKT_DATA || p.type == PKT_DATA_END) {
+                p = readPacket(cmdIn!!)
+            }
+            Log.d(TAG, "GetDeviceInfo 协商握手完成")
+        } catch (e: Exception) {
+            Log.w(TAG, "GetDeviceInfo 协商略过: ${e.message}")
+        }
+
+        // 2. 发送标准 PTP OpenSession (0x1002)
         val txId = nativeCore.nextTransactionId().toInt()
         val payload = buildCommandPayload(OC_OPEN_SESSION.toShort(), txId, sessionId)
         sendPacket(cmdOut!!, PKT_CMD_REQ, payload)
         readPacket(cmdIn!!)
+
+        // 3. 针对处于「连接向导」状态的相机，发送尼康私有配对指令，触发相机屏幕确认并穿透向导
+        try {
+            // GetPairingCode (0x952B) 唤醒相机配对状态
+            val pairCodeTxId = nativeCore.nextTransactionId().toInt()
+            val pairCodePayload = buildCommandPayload(0x952B.toShort(), pairCodeTxId)
+            sendPacket(cmdOut!!, PKT_CMD_REQ, pairCodePayload)
+            var pairPkt = readPacket(cmdIn!!)
+            while (pairPkt.type == PKT_DATA || pairPkt.type == PKT_DATA_END) {
+                pairPkt = readPacket(cmdIn!!)
+            }
+            Log.i(TAG, "已成功发送尼康 GetPairingCode (0x952B)")
+        } catch (e: Exception) {
+            Log.d(TAG, "非配对向导状态或无需索取配对码: ${e.message}")
+        }
+
+        try {
+            // ConfirmPairing (0x935A, token 0xD061) 提交配对确认
+            val confirmTxId = nativeCore.nextTransactionId().toInt()
+            val confirmPayload = buildCommandPayload(0x935A.toShort(), confirmTxId, 0xD061)
+            sendPacket(cmdOut!!, PKT_CMD_REQ, confirmPayload)
+            readPacket(cmdIn!!)
+            Log.i(TAG, "已向相机发送尼康配对确认 (0x935A, 0xD061)，相机配对完成！")
+        } catch (e: Exception) {
+            Log.d(TAG, "非配对向导状态或已完成配对: ${e.message}")
+        }
     }
 
     suspend fun triggerShutter(): Boolean = withContext(Dispatchers.IO) {
