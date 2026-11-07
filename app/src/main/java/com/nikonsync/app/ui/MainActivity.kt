@@ -223,6 +223,11 @@ class MainActivity : AppCompatActivity() {
 
         // 局域网扫描相机
         btnScanLocalCamera.setOnClickListener {
+            if (!NetworkUtils.isWifiConnected(this@MainActivity)) {
+                Toast.makeText(this@MainActivity, "⚠️ 手机未连接 Wi-Fi，无法扫描局域网设备", Toast.LENGTH_SHORT).show()
+                appendLog("⚠️ 手机当前处于移动蜂窝网络，未连接 Wi-Fi，无法扫描局域网相机！请先打开手机 Wi-Fi", isError = true)
+                return@setOnClickListener
+            }
             lifecycleScope.launch {
                 btnScanLocalCamera.isEnabled = false
                 btnScanLocalCamera.text = "扫描中..."
@@ -235,8 +240,8 @@ class MainActivity : AppCompatActivity() {
                     appendLog("已发现相机 IP: $normalized")
                     Toast.makeText(this@MainActivity, "找到相机: $normalized", Toast.LENGTH_SHORT).show()
                 } else {
-                    appendLog("未扫描到相机，请确认相机在[连接到计算机]等待状态", isError = true)
-                    Toast.makeText(this@MainActivity, "未扫描到相机，请检查相机状态", Toast.LENGTH_LONG).show()
+                    appendLog("未扫描到相机，请确认相机处于[连接到计算机]待命状态", isError = true)
+                    Toast.makeText(this@MainActivity, "未扫描到相机，请确认相机在同一 Wi-Fi 下", Toast.LENGTH_LONG).show()
                 }
                 btnScanLocalCamera.isEnabled = true
                 btnScanLocalCamera.text = "自动扫描"
@@ -345,6 +350,12 @@ class MainActivity : AppCompatActivity() {
                 etCameraIp.clearFocus()
                 prefs.edit().putString("camera_ip", ip).apply()
 
+                if (!NetworkUtils.isWifiConnected(this)) {
+                    Toast.makeText(this, "⚠️ 手机当前未连接 Wi-Fi！请先打开 Wi-Fi 连入与相机相同的网络", Toast.LENGTH_LONG).show()
+                    appendLog("⚠️ 手机当前处于移动网络（未连接 Wi-Fi），无法访问局域网相机 IP $ip。请先打开手机 Wi-Fi 连入同一网络！", isError = true)
+                    return@setOnClickListener
+                }
+
                 val mode = when (rgFormatMode.checkedRadioButtonId) {
                     R.id.rbFormatAll -> PhotoSyncService.FORMAT_ALL
                     R.id.rbFormatRaw -> PhotoSyncService.FORMAT_RAW_ONLY
@@ -371,16 +382,16 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateConnectionUI(connecting: Boolean = syncService?.isConnecting == true) {
         val connected = syncService?.isCameraConnected == true
+        val isWifi = NetworkUtils.isWifiConnected(this)
         val (label, hint, color) = when {
-            connecting -> Triple(R.string.connecting, R.string.connecting_hint, R.color.sync_gold_ink)
-            connected -> Triple(R.string.connected, R.string.connected_hint, R.color.sync_green)
-            else -> Triple(R.string.idle, R.string.wifi_hint, R.color.sync_muted)
+            connecting -> Triple(getString(R.string.connecting), getString(R.string.connecting_hint), R.color.sync_gold_ink)
+            connected -> Triple(getString(R.string.connected), getString(R.string.connected_hint), R.color.sync_green)
+            !isWifi -> Triple(getString(R.string.idle), "⚠️ 手机当前未连接 Wi-Fi（处于移动蜂窝网络）。请先打开 Wi-Fi 连入与相机相同的网络！", R.color.sync_muted)
+            else -> Triple(getString(R.string.idle), getString(R.string.wifi_hint), R.color.sync_muted)
         }
-        tvStatusBadge.setText(label)
+        tvStatusBadge.text = label
         tvStatusBadge.setTextColor(ContextCompat.getColor(this, color))
-        if (tvStatusText.text.isNullOrEmpty()) {
-            tvStatusText.setText(hint)
-        }
+        tvStatusText.text = hint
         btnConnect.setText(if (connected) R.string.disconnect else R.string.connect)
         btnConnect.isEnabled = syncService != null && !connecting
         btnShutter.isEnabled = connected && !connecting

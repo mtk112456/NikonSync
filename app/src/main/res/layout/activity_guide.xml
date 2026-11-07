@@ -35,7 +35,7 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:layout_marginStart="12dp"
-                android:text="尼康 Z30 真实操作与配对指南"
+                android:text="尼康全机型无线配对指南"
                 android:textSize="18sp"
                 android:textStyle="bold"
                 android:textColor="@color/sync_ink" />
@@ -48,7 +48,7 @@
             android:paddingHorizontal="16dp"
             android:paddingTop="16dp">
 
-            <!-- 重要提示：Z30 菜单说明 -->
+            <!-- 卡片 1: 尼康机型菜单分类速查 -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -59,7 +59,7 @@
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="📌 尼康 Z30 菜单关键位置说明"
+                    android:text="📷 尼康机型菜单分类与路径"
                     android:textSize="16sp"
                     android:textStyle="bold"
                     android:textColor="#E65100" />
@@ -69,12 +69,12 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
                     android:lineSpacingExtra="4dp"
-                    android:text="尼康 Z30/Z50/Zfc 没有独立的天线图标网络菜单，所有无线与连接功能均位于：\n【MENU 按键】 ➔ 左侧菜单栏选择【设定菜单】（扳手 🔧 图标）。\n\n在此菜单下您将看到两个核心选项：\n1. 【连接到计算机】：用于无线高速局域网/热点传输（支持手机同时不断网）。\n2. 【连接至智能设备】：用于蓝牙 GPS 定位注入或相机直连热点。"
+                    android:text="不同年代与定位的尼康机身，无线菜单位置有所区别，请根据您的机型对号入座：\n\n1️⃣ 【新一代 Z 机型（带连接类型）】\n• 适用机型：Z9、Z8、Z6III、Zf、Z50II、ZR\n• 菜单路径：【MENU】➔【网络菜单】(📡天线图标) ➔【连接至计算机】\n• ⚠️ 关键步骤：机身提供「连接类型」选项，必须设置为【图像传送】（切勿设为遥控拍摄，否则无法接收照片）！随后进入【网络设定】。\n\n2️⃣ 【轻便 APS-C 微单（扳手菜单）】\n• 适用机型：Z30、Z50、Zfc\n• 菜单路径：【MENU】➔【设定菜单】(🔧扳手图标) ➔【连接到计算机】➔【网络设定】\n• 说明：该系列机身无独立天线网络菜单，所有无线配置统一整合在扳手设定菜单中。\n\n3️⃣ 【经典一代/二代全画幅微单】\n• 适用机型：Z5、Z6、Z7、Z6II、Z7II\n• 菜单路径：【MENU】➔【网络菜单】(📡天线图标) ➔【连接到计算机】➔【网络设定】\n\n4️⃣ 【内置 Wi-Fi 的数码单反机身】\n• 适用机型：D850、D780、D750、D500、D7500、D5600 等\n• 菜单路径：【MENU】➔【设定菜单】(🔧扳手图标) ➔【Wi-Fi】➔【网络设定】"
                     android:textColor="@color/sync_ink"
                     android:textSize="13sp" />
             </LinearLayout>
 
-            <!-- 核心方案 1：不断网模式 (推荐) -->
+            <!-- 卡片 2: 方案一：局域网不断网模式 (推荐) -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -96,12 +96,12 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
                     android:lineSpacingExtra="4dp"
-                    android:text="• 原理：让相机直接连接您家里的路由器 Wi-Fi。手机依然连在家里原本的 Wi-Fi 上，两者同在一个局域网内。\n• 优点：手机完全不断开现有 Wi-Fi，微信、刷视频、上网完全不受任何影响，同时相机拍完照自动存入手机！\n\n【Z30 相机端操作】：\n1. 按【MENU】键 ➔ 进入【设定菜单】（扳手 🔧 图标）。\n2. 选择【连接到计算机】 ➔ 【网络设定】 ➔ 【创建配置文件】。\n3. 选择【搜索 Wi-Fi 网络】，相机搜索到家里的 Wi-Fi 后选中并输入密码连接。\n4. 连接成功后，在【网络设定】➔【TCP/IP】中可查看相机的局域网 IP（例如 192.168.1.105）。\n\n【手机端操作】：\n在 App 主界面可直接点击「🔍 一键自动扫描局域网相机」按钮秒级自动填入；也可以手动输入（相机屏幕上显示的带前导零 IP 如 192.168.031.213 会自动去除前导零规范化为 192.168.31.213），点击「连接相机」即可秒级连通！"
+                    android:text="• 原理：相机和手机同时连接家里的同一个 Wi-Fi 路由器（如小米、TP-Link、华硕等）。\n• 优点：手机上网完全不受影响，微信、网页极速浏览，同时相机拍照自动飞速存入手机！\n\n【相机端操作】：\n1. 进入机身对应的「连接到计算机」➔【网络设定】➔【创建配置文件】。\n2. 选择【搜索 Wi-Fi 网络】，选中您家里的 Wi-Fi 并输入密码连接。\n3. 连接成功后，相机屏幕会显示「[Wi-Fi名称] 正在连接到计算机」，并在【TCP/IP】中显示分配的 IP（例如 192.168.31.213）。\n\n【手机端操作】：\n1. 确保手机已连接同一个 Wi-Fi（状态栏显示 Wi-Fi 图标，不能是 5G 移动数据）。\n2. 打开 App，点击「自动扫描」或手动输入相机 IP。\n3. 点击【连接相机】。\n4. ⚠️【关键授权】：低头看相机屏幕，相机会弹出「与计算机配对？」提示，此时按下相机上的【OK】键（十字键中间的 OK / J 键）确认配对！\n5. 配对成功后，相机 Wi-Fi 标志变绿，手机 App 显示「已连接」，即可即拍即传！"
                     android:textColor="@color/sync_ink"
                     android:textSize="13sp" />
             </LinearLayout>
 
-            <!-- 核心方案 2：手机开热点模式 (户外不断网) -->
+            <!-- 卡片 3: 方案二：相机直连热点模式 (户外推荐) -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -113,7 +113,7 @@
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="🌟 方案二：手机开热点模式 (户外外景不断网推荐)"
+                    android:text="🌟 方案二：相机直连热点模式 (户外无路由器环境)"
                     android:textSize="16sp"
                     android:textStyle="bold"
                     android:textColor="@color/sync_gold_ink" />
@@ -123,12 +123,12 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
                     android:lineSpacingExtra="4dp"
-                    android:text="• 原理：手机开启自身的【个人热点】，相机连接手机热点。\n• 优点：手机使用 4G/5G 蜂窝数据正常极速上网（发朋友圈、发微信完全不断网！），相机通过热点传输照片。\n\n【操作步骤】：\n1. 手机打开【个人热点】（频段建议 5GHz 或 2.4GHz 均可）。\n2. 相机按【MENU】键 ➔ 【设定菜单】（扳手 🔧 图标） ➔ 【连接到计算机】。\n3. 选择【网络设定】 ➔ 【创建配置文件】 ➔ 【搜索 Wi-Fi 网络】。\n4. 相机搜索到您的手机热点名称后，输入热点密码连接。\n5. 连上后，手机端 App 自动检测或在 IP 框输入热点分配的相机 IP 即可开始传输！"
+                    android:text="• 原理：相机自身发射 Wi-Fi 热点，手机连入相机热点。\n\n【相机端操作】：\n在「连接到计算机」➔【网络设定】➔【创建配置文件】中选择【直接连接至计算机】（或在「连接至智能设备」中建立 Wi-Fi 连接）。相机屏幕将显示热点名称与连接密码。\n\n【手机端操作】：\n1. 手机打开系统「设置」➔「WLAN」，搜索并连接相机热点。\n2. 打开 App，IP 保持默认的 192.168.0.1，点击【连接相机】并在相机上按【OK】键授权。\n\n💡 户外不断网技巧：若连接相机 Wi-Fi 时系统提示「此网络无法访问互联网」，务必选择【保持连接】并勾选【不再提示】；并在手机系统设置中开启「WLAN 助理 / 网络加速 / 智能使用移动数据」，手机即可在用 4G/5G 正常上网的同时用 Wi-Fi 传照片！"
                     android:textColor="@color/sync_ink"
                     android:textSize="13sp" />
             </LinearLayout>
 
-            <!-- 核心方案 3：传统相机直连模式 -->
+            <!-- 卡片 4: 常见故障排查 -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -140,7 +140,7 @@
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="🌟 方案三：相机开热点模式 (传统直连模式)"
+                    android:text="❓ 常见连接疑问与排查技巧"
                     android:textSize="16sp"
                     android:textStyle="bold"
                     android:textColor="@color/sync_gold_ink" />
@@ -150,12 +150,12 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
                     android:lineSpacingExtra="4dp"
-                    android:text="• 原理：相机自身发射 Wi-Fi 热点，手机连接相机热点。\n\n【Z30 相机端操作】：\n1. 按【MENU】键 ➔ 【设定菜单】（扳手 🔧 图标） ➔ 【连接至智能设备】。\n2. 选择【Wi-Fi 连接】 ➔ 【建立 Wi-Fi 连接】。\n3. 相机屏幕显示 SSID (如 Z30_XXXXXXX) 与密码。\n4. 手机在系统 WLAN 列表中搜索并连入该热点（默认 IP 为 192.168.0.1）。\n\n【手机如何在此模式下不断网】：\n• 进入手机【系统设置】 ➔ 【WLAN】 ➔ 【网络加速 / WLAN助理 / 智能切换移动网络】并开启。\n• 当连接相机 Wi-Fi 弹出“此网络无法访问互联网”时，务必勾选【保持连接】并选择【不再提示】。系统便会自动用 4G/5G 蜂窝数据上网，而用 Wi-Fi 传照片，实现同时不断网！"
+                    android:text="Q1：相机屏幕一直显示「正在连接到计算机」，是卡死了吗？\n答：没有卡死！这是尼康的标准待命提示，意思是「相机已连上路由器，正在等待手机或电脑软件来连接」。此时手机只要打开 Wi-Fi 连上同一个网络，在 App 里点击【连接相机】，并在相机上按【OK】键即可完成连通。\n\nQ2：点击连接后一直超时或未连接？\n答：请检查手机右上角状态栏是否显示 Wi-Fi 图标。如果手机处于 5G/4G 移动数据网络，手机是无法访问家庭局域网内的相机 IP 的。请先开启手机 Wi-Fi 连入与相机相同的网络。\n\nQ3：相机 IP 地址带有前导零怎么办？\n答：尼康相机在 TCP/IP 界面通常显示 3 位数字（如 192.168.031.213），在 App 中输入 192.168.31.213 即可（App 也会在连接时自动去除前导零）。"
                     android:textColor="@color/sync_ink"
                     android:textSize="13sp" />
             </LinearLayout>
 
-            <!-- 卡片 4: 蓝牙 GPS 定位注入 -->
+            <!-- 卡片 5: 蓝牙 GPS 定位注入 -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -167,7 +167,7 @@
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="📍 蓝牙 GPS 定位注入真实配对步骤"
+                    android:text="📍 蓝牙 GPS 定位注入操作步骤"
                     android:textSize="16sp"
                     android:textStyle="bold"
                     android:textColor="@color/sync_gold_ink" />
@@ -177,12 +177,12 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
                     android:lineSpacingExtra="4dp"
-                    android:text="1. 打开 App 首页，开启【蓝牙 GPS 实时中继】开关（首次使用请授予精确定位权限）。\n2. 相机按【MENU】键 ➔ 【设定菜单】（扳手 🔧 图标） ➔ 【连接至智能设备】。\n3. 选择【配对 (Bluetooth)】 ➔ 【开始配对】。\n4. 此时相机屏幕会显示相机名称，手机 App 会自动发现并发起蓝牙配对。\n5. 当相机屏幕弹出配对确认提示时，按下相机上的【OK】键。\n6. 配对成功后，相机屏幕会出现卫星定位图标，拍摄的每张照片都将自动打入高精度的 GPS 地理坐标与海拔！"
+                    android:text="1. 打开 App 首页，开启【蓝牙 GPS 实时中继】开关（授予精确定位与附近设备权限）。\n2. 相机按【MENU】➔【设定菜单】(扳手 🔧) 或【网络菜单】➔【连接至智能设备】。\n3. 选择【配对 (Bluetooth)】➔【开始配对】。\n4. 相机屏幕显示相机名称，手机 App 会自动发现并发起蓝牙配对。\n5. 当相机屏幕弹出配对确认提示时，按下相机上的【OK】键。\n6. 配对成功后，相机屏幕会出现卫星图标，拍摄的每张照片都会自动打入精准 GPS 经纬度与海拔！"
                     android:textColor="@color/sync_ink"
                     android:textSize="13sp" />
             </LinearLayout>
 
-            <!-- 卡片 5: 色彩预设导入 -->
+            <!-- 卡片 6: 色彩预设导入 -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -194,7 +194,7 @@
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="🎨 Picture Control 预设导入 Z30 相机"
+                    android:text="🎨 Picture Control 预设导入相机"
                     android:textSize="16sp"
                     android:textStyle="bold"
                     android:textColor="@color/sync_gold_ink" />
@@ -204,7 +204,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
                     android:lineSpacingExtra="4dp"
-                    android:text="1. 在 App 首页点击【尼康 Picture Control 调色与预设导出】。\n2. 调节参数并点击「导出 .NP3 曲线预设文件」。\n3. 将 .NP3 文件复制到相机存储卡根目录的【NIKON/CUSTOMPC/】文件夹内。\n4. 在相机上按【MENU】键 ➔ 【照片拍摄菜单】（相机图标） ➔ 【管理优化校准】 ➔ 【载入/保存】 ➔ 【复制到照相机】，即可载入为相机专属色彩风格！"
+                    android:text="1. 在 App 首页点击【尼康 Picture Control 调色与预设导出】。\n2. 调节参数并点击「导出 .NP3 曲线预设文件」。\n3. 将 .NP3 文件复制到相机存储卡根目录的【NIKON/CUSTOMPC/】文件夹内。\n4. 在相机上按【MENU】➔【照片拍摄菜单】➔【管理优化校准】➔【载入/保存】➔【复制到照相机】，即可直接在相机机身内享用调色风格！"
                     android:textColor="@color/sync_ink"
                     android:textSize="13sp" />
             </LinearLayout>

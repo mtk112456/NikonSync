@@ -1,10 +1,10 @@
 {
-  "versionCode": 9,
-  "versionName": "2.1.6",
+  "versionCode": 10,
+  "versionName": "2.1.7",
   "releaseDate": "2026-11-07",
-  "title": "NikonSync v2.1.6 极简纯净版",
-  "changelog": "1. 界面深度精简：彻底删除冗余提示与无效文案，界面回归纯净极简\n2. 传输格式横向优化排版，空间利用率大幅提升\n3. 局域网扫描、IP重置与日志控制台全面优化精炼",
-  "downloadUrl": "https://github.com/mtk112456/NikonSync/releases/download/v2.1.6/NikonSync-v2.1.6.apk",
-  "mirrorDownloadUrl": "https://ghfast.top/https://github.com/mtk112456/NikonSync/releases/download/v2.1.6/NikonSync-v2.1.6.apk",
-  "cdnDownloadUrl": "https://cdn.jsdelivr.net/gh/mtk112456/NikonSync@main/apk/NikonSync-v2.1.6.apk"
+  "title": "NikonSync v2.1.7 全机型适配与UI优化版",
+  "changelog": "1. 界面优化：顶栏重排，应用名称独占单行不折行\n2. 全机型配对指南：完整支持尼康全系机型分类（Z9/Z8/Z6III/Zf、Z30/Z50/Zfc、Z5/Z6/Z7、D850/D780等单反）\n3. 智能网络提醒：自动检测手机 Wi-Fi 状态，处于 5G/4G 移动数据时友好提示先连 Wi-Fi\n4. 恢复核心操作指引卡片，配对流程更加清晰顺畅",
+  "downloadUrl": "https://github.com/mtk112456/NikonSync/releases/download/v2.1.7/NikonSync-v2.1.7.apk",
+  "mirrorDownloadUrl": "https://ghfast.top/https://github.com/mtk112456/NikonSync/releases/download/v2.1.7/NikonSync-v2.1.7.apk",
+  "cdnDownloadUrl": "https://cdn.jsdelivr.net/gh/mtk112456/NikonSync@main/apk/NikonSync-v2.1.7.apk"
 }
