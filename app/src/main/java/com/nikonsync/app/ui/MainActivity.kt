@@ -42,6 +42,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var switchAutoConnect: SwitchCompat
     private lateinit var btnConnect: Button
     private lateinit var btnShutter: Button
+    private lateinit var btnRePair: Button
     private lateinit var btnOpenGallery: MaterialButton
     private lateinit var btnOpenPictureControl: MaterialButton
     private lateinit var tvGpsStatus: TextView
@@ -188,6 +189,7 @@ class MainActivity : AppCompatActivity() {
         switchAutoConnect = findViewById(R.id.switchAutoConnect)
         btnConnect = findViewById(R.id.btnConnect)
         btnShutter = findViewById(R.id.btnShutter)
+        btnRePair = findViewById(R.id.btnRePair)
         btnOpenGallery = findViewById(R.id.btnOpenGallery)
         btnOpenPictureControl = findViewById(R.id.btnOpenPictureControl)
         tvGpsStatus = findViewById(R.id.tvGpsStatus)
@@ -386,7 +388,12 @@ class MainActivity : AppCompatActivity() {
             syncService?.triggerShutter()
         }
 
-        // 长按连接按钮：触发重新配对相机向导
+        // 重新配对向导按钮
+        btnRePair.setOnClickListener {
+            showRePairDialog()
+        }
+
+        // 长按连接按钮：同样触发重新配对相机向导
         btnConnect.setOnLongClickListener {
             showRePairDialog()
             true
@@ -417,20 +424,15 @@ class MainActivity : AppCompatActivity() {
         btnConnect.text = buttonText
         btnConnect.isEnabled = syncService != null && !connecting
         btnShutter.isEnabled = connected && !connecting
+        btnRePair.isEnabled = !connecting
         etCameraIp.isEnabled = !connected && !connecting
     }
 
     private fun showPairingSuccessDialog(cameraName: String, code: String) {
         androidx.appcompat.app.AlertDialog.Builder(this)
             .setTitle("🎉 相机配对成功")
-            .setMessage("已成功为【$cameraName】完成无线配对认证！\n(认证识别挑战: $code)\n\n⚠️ 极其重要的最后一步：\n请查看相机屏幕，当前已显示「配对完成」。\n请务必在相机机身上按下【OK】或【J】键保存网络配置文件！\n\n按完机身按键后，点击下方按钮即可立即连接相机开始传输照片。")
-            .setPositiveButton("立即连接相机") { _, _ ->
-                val rawIp = etCameraIp.text.toString().trim().ifEmpty { NetworkUtils.getCameraIp(this) }
-                val ip = NetworkUtils.normalizeIp(rawIp)
-                syncService?.startSync(ip, manual = true)
-                updateConnectionUI(connecting = true)
-            }
-            .setNegativeButton("稍后连接", null)
+            .setMessage("已成功为【$cameraName】完成无线配对认证！\n(认证识别码: $code)\n\n👉 极其重要的最后一步：\n相机屏幕当前已显示「配对完成」。\n请立刻在相机机身上按下【OK】或【J】键保存网络配置文件！\n\nApp 正在后台自动连接相机，按完机身按键后数秒内即可自动进入【已连接】状态并开始传输照片。")
+            .setPositiveButton("我已在相机按 OK 键", null)
             .setCancelable(false)
             .show()
     }

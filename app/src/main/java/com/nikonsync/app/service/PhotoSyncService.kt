@@ -243,9 +243,6 @@ class PhotoSyncService : Service() {
                         )
                     }
 
-                    isPairing = false
-                    isConnecting = false
-
                     when (result) {
                         is NikonPtpClient.PairingResult.Success -> {
                             NikonCameraProfile.savePairedProfile(
@@ -255,12 +252,41 @@ class PhotoSyncService : Service() {
                                 result.cameraName,
                                 ip
                             )
-                            val okMsg = "🎉 配对已确认！请在相机屏幕上按下 OK / J 键确认保存配置，然后点击【连接相机】。"
+                            val okMsg = "🎉 相机配对成功！请在机身上按下 OK / J 键，正在自动连接传输通道..."
                             onStatusChanged?.invoke(okMsg)
                             updateNotification("配对完成：请在相机上按 OK 键")
                             onPairingSuccess?.invoke(result.cameraName, result.pairingCode)
+
+                            isPairing = false
+                            isConnecting = true
+
+                            // 核心对齐原版：配对确认后，相机固化配置并重启网络服务等待计算机接入。
+                            // 手机端主动连续轮询握手（持续 30 秒），在相机按 OK 后的第一时间完成连接，杜绝相机超时显示「无法连接」！
+                            var connected = false
+                            for (attempt in 1..15) {
+                                if (!isActive || isManualDisconnected) break
+                                onStatusChanged?.invoke("正在等待相机就绪并自动建立传输 (第 $attempt 次尝试，请按机身 OK 键)...")
+                                delay(1500)
+                                try {
+                                    val success = client.connect(guid, friendlyName) { step ->
+                                        onStatusChanged?.invoke(step)
+                                    }
+                                    if (success) {
+                                        connected = true
+                                        break
+                                    }
+                                } catch (e: Exception) {
+                                    Log.d(TAG, "轮询日常连接中: ${e.message}")
+                                }
+                            }
+                            if (!connected && !isManualDisconnected) {
+                                isConnecting = false
+                                onStatusChanged?.invoke("等待相机按键超时。若相机已按 OK 键，请直接点击【连接相机】。")
+                            }
                         }
                         is NikonPtpClient.PairingResult.Error -> {
+                            isPairing = false
+                            isConnecting = false
                             val failMsg = "配对失败: ${result.message}"
                             onStatusChanged?.invoke(failMsg)
                             updateNotification(failMsg)

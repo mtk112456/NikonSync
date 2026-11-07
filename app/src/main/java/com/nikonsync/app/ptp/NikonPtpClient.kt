@@ -58,10 +58,11 @@ class NikonPtpClient(
         const val OC_GET_THUMB = 0x100A
         const val OC_INITIATE_CAPTURE = 0x100E
 
-        // 尼康厂商 WTU 配对专用操作码与令牌 (对齐 ZRelay libzrelay_core.so)
+        // 尼康厂商 WTU 配对专用操作码与确认参数 (对齐 ZRelay ck0.java:2251 与 libzrelay_core.so)
         const val OC_NIKON_GET_PAIRING_CODE = 0x952B
         const val OC_NIKON_CONFIRM_PAIRING = 0x935A
-        const val NIKON_PAIRING_TOKEN = 0xD061
+        // 关键对齐：ConfirmPairing (0x935A) 的入参为 0x2001 (RC_OK)，向相机固件确认配对接受
+        const val NIKON_PAIRING_ACCEPT = 0x2001
 
         // PTP 响应码
         const val RC_OK = 0x2001
@@ -176,11 +177,11 @@ class NikonPtpClient(
                     onCodeDiscovered?.invoke(pairingCode)
                 }
 
-                // 4. ConfirmPairing (0x935A, 0xD061) 提交确认
+                // 4. ConfirmPairing (0x935A, 0x2001) 提交确认 (参数 0x2001 即 PTP RC_OK)
                 onProgress?.invoke("已获取配对码 [$pairingCode]，正在向相机提交确认 (0x935A)...")
-                val confirmResp = executePtpCommand(OC_NIKON_CONFIRM_PAIRING.toShort(), NIKON_PAIRING_TOKEN)
+                val confirmResp = executePtpCommand(OC_NIKON_CONFIRM_PAIRING.toShort(), NIKON_PAIRING_ACCEPT)
                 if (confirmResp.responseCode != RC_OK) {
-                    Log.w(TAG, "ConfirmPairing 返回响应码: 0x${confirmResp.responseCode.toString(16)}")
+                    throw IllegalStateException("相机拒绝配对确认 (响应码: 0x${confirmResp.responseCode.toString(16)})")
                 }
                 onProgress?.invoke("相机已确认配对！向导完成，准备固化配置...")
 
@@ -199,7 +200,10 @@ class NikonPtpClient(
 
     /**
      * 执行原版日常传输连接（Transfer Session）：
-     * 使用已配对的凭据发起握手，并直接打开 Session，监听照片事件
+     * 1. 使用已配对的专属 GUID 和 FriendlyName 发起底层握手
+     * 2. 对齐原版 NikonTransferService：OpenSession 之前必须执行 GetDeviceInfo (0x1001)
+     * 3. 发送 OpenSession (0x1002) 激活照片传输会话
+     * 4. 监听后台事件流 (EV_OBJECT_ADDED 0x4002) 实现即拍即传
      */
     suspend fun connect(
         guid: ByteArray = CLIENT_DEFAULT_GUID,
@@ -211,11 +215,26 @@ class NikonPtpClient(
                 Log.d(TAG, "正在建立日常传输连接 -> $host:$port (主机: $friendlyName)...")
                 initTransport(guid, friendlyName, onProgress)
 
+                // 1. 对齐原版 NikonTransferService.java:1510：OpenSession 之前必须先调用 GetDeviceInfo (0x1001)
+                onProgress?.invoke("正在获取相机设备信息 (0x1001)...")
+                try {
+                    val devInfoResp = executePtpCommand(OC_GET_DEVICE_INFO.toShort())
+                    Log.d(TAG, "GetDeviceInfo 响应成功: 0x${devInfoResp.responseCode.toString(16)}")
+                } catch (e: Exception) {
+                    Log.w(TAG, "GetDeviceInfo 协商跳过: ${e.message}")
+                }
+
+                // 2. 打开日常传输会话 (0x1002)
                 onProgress?.invoke("正在打开相机传输会话 (0x1002)...")
                 val resp = executePtpCommand(OC_OPEN_SESSION.toShort(), sessionId)
                 if (resp.responseCode != RC_OK && resp.responseCode != RC_SESSION_NOT_OPEN) {
-                    Log.w(TAG, "OpenSession 响应码: 0x${resp.responseCode.toString(16)}")
+                    throw IllegalStateException("打开传输会话失败: 0x${resp.responseCode.toString(16)}")
                 }
+
+                // 3. 对齐原版：探测可伸缩镜头状态 (0xD09C)，保持固件通信链路平稳
+                try {
+                    executePtpCommand(0x1014.toShort(), 0xD09C)
+                } catch (_: Exception) {}
 
                 cmdSocket?.soTimeout = 0
                 eventSocket?.soTimeout = 0
@@ -253,7 +272,7 @@ class NikonPtpClient(
         command.tcpNoDelay = true
         command.keepAlive = true
         command.receiveBufferSize = 4 * 1024 * 1024
-        command.connect(InetSocketAddress(host, port), 10000)
+        command.connect(InetSocketAddress(host, port), 5000)
         command.soTimeout = 15000
         cmdIn = command.getInputStream()
         cmdOut = command.getOutputStream()
@@ -299,7 +318,7 @@ class NikonPtpClient(
         event.tcpNoDelay = true
         event.keepAlive = true
         event.receiveBufferSize = 4 * 1024 * 1024
-        event.connect(InetSocketAddress(host, port), 10000)
+        event.connect(InetSocketAddress(host, port), 5000)
         event.soTimeout = 15000
         eventIn = event.getInputStream()
         val eventOut = event.getOutputStream()

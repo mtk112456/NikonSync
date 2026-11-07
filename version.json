@@ -1,10 +1,10 @@
 {
-  "versionCode": 14,
-  "versionName": "2.2.1",
+  "versionCode": 15,
+  "versionName": "2.2.2",
   "releaseDate": "2026-11-07",
-  "title": "NikonSync v2.2.1 彻底移除 Native N04 崩溃与单次连续封包修复",
-  "changelog": "1. 彻底移除 NativePtpCore 依赖，杜绝闭源 libzrelay_core.so 抛出 IllegalStateException: N04\n2. 修复 sendPacket 拆包分节问题：对齐原版采用单次连续 ByteArray 写入网络流，防止相机固件遭遇 EOF\n3. 全流程增加秒级细粒度诊断日志输出（精确指示握手/会话/挑战/确认阶段）\n4. 新增网络抖动与休眠自动退避 1.5 秒重试机制",
-  "downloadUrl": "https://github.com/mtk112456/NikonSync/releases/download/v2.2.1/NikonSync-v2.2.1.apk",
-  "mirrorDownloadUrl": "https://gh-proxy.com/https://github.com/mtk112456/NikonSync/releases/download/v2.2.1/NikonSync-v2.2.1.apk",
-  "cdnDownloadUrl": "https://cdn.jsdelivr.net/gh/mtk112456/NikonSync@main/apk/NikonSync-v2.2.1.apk"
+  "title": "NikonSync v2.2.2 修复配对确认 0x2001 参数与即刻自动连接",
+  "changelog": "1. 关键修复 ConfirmPairing (0x935A) 确认参数：严格对齐原版传入 0x2001 (RC_OK)，杜绝相机显示「无法连接」\n2. 增加日常传输会话前置 GetDeviceInfo (0x1001) 设备信息查询，完全匹配原版 NikonTransferService 状态机\n3. 新增配对完成即刻自动轮询握手机制：在相机机身按 OK 键后数秒内自动建立传输通道，避免相机等待超时\n4. 主界面显式增加【🔄 重新配对向导】按钮，方便快捷重置与重绑相机",
+  "downloadUrl": "https://github.com/mtk112456/NikonSync/releases/download/v2.2.2/NikonSync-v2.2.2.apk",
+  "mirrorDownloadUrl": "https://gh-proxy.com/https://github.com/mtk112456/NikonSync/releases/download/v2.2.2/NikonSync-v2.2.2.apk",
+  "cdnDownloadUrl": "https://cdn.jsdelivr.net/gh/mtk112456/NikonSync@main/apk/NikonSync-v2.2.2.apk"
 }

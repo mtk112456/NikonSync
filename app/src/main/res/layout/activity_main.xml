@@ -309,6 +309,16 @@
                 android:textSize="14sp"
                 app:cornerRadius="12dp"
                 app:strokeColor="@color/sync_border" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnRePair"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="match_parent"
+                android:layout_height="40dp"
+                android:layout_marginTop="4dp"
+                android:text="🔄 重新配对向导 (重新绑定相机)"
+                android:textColor="@color/sync_muted"
+                android:textSize="13sp" />
         </LinearLayout>
 
         <!-- 扩展功能 -->
