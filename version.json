@@ -5,6 +5,6 @@
   "title": "NikonSync v2.1.8 修复握手缓冲与配对确认",
   "changelog": "1. 修复底层 PTP 命令通道会话建立缓冲溢出导致连接失败的严重缺陷\n2. 握手与配对等待超时从 5 秒提升至 60 秒，保证在相机上按 OK 确认配对顺畅连通\n3. 优化错误异常信息展示，避免出现空异常信息",
   "downloadUrl": "https://github.com/mtk112456/NikonSync/releases/download/v2.1.8/NikonSync-v2.1.8.apk",
-  "mirrorDownloadUrl": "https://ghfast.top/https://github.com/mtk112456/NikonSync/releases/download/v2.1.8/NikonSync-v2.1.8.apk",
+  "mirrorDownloadUrl": "https://gh-proxy.com/https://github.com/mtk112456/NikonSync/releases/download/v2.1.8/NikonSync-v2.1.8.apk",
   "cdnDownloadUrl": "https://cdn.jsdelivr.net/gh/mtk112456/NikonSync@main/apk/NikonSync-v2.1.8.apk"
 }
