@@ -70,12 +70,12 @@ object AppUpdateManager {
 
     private fun fetchRemoteVersionInfo(): UpdateInfo? {
         val t = System.currentTimeMillis()
-        // 多个国内 CDN 极速源与 GitHub 官方源（带防缓存时间戳参数）
+        // 多个国内极速镜像源（优先无缓存的 ghfast 实时源）与 CDN / GitHub 源
         val urls = listOf(
+            "https://ghfast.top/https://raw.githubusercontent.com/mtk112456/NikonSync/main/version.json?t=$t",
+            "https://raw.githubusercontent.com/mtk112456/NikonSync/main/version.json?t=$t",
             "https://cdn.jsdelivr.net/gh/mtk112456/NikonSync@main/version.json?t=$t",
-            "https://gcore.jsdelivr.net/gh/mtk112456/NikonSync@main/version.json?t=$t",
-            "https://fastly.jsdelivr.net/gh/mtk112456/NikonSync@main/version.json?t=$t",
-            "https://raw.githubusercontent.com/mtk112456/NikonSync/main/version.json?t=$t"
+            "https://gcore.jsdelivr.net/gh/mtk112456/NikonSync@main/version.json?t=$t"
         )
         for (urlStr in urls) {
             try {
