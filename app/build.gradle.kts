@@ -11,8 +11,8 @@ android {
         applicationId = "com.nikonsync.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 5
-        versionName = "2.1.2"
+        versionCode = 6
+        versionName = "2.1.3"
 
         ndk {
             abiFilters.addAll(listOf("arm64-v8a", "armeabi-v7a", "x86_64"))

@@ -36,7 +36,8 @@ object AppUpdateManager {
         val title: String,
         val changelog: String,
         val downloadUrl: String,
-        val mirrorDownloadUrl: String
+        val mirrorDownloadUrl: String,
+        val cdnDownloadUrl: String = ""
     )
 
     fun checkUpdate(context: Context, silent: Boolean = true, onCheckComplete: (() -> Unit)? = null) {
@@ -97,7 +98,8 @@ object AppUpdateManager {
                         title = json.optString("title", "发现新版本"),
                         changelog = json.optString("changelog", "性能优化与功能完善"),
                         downloadUrl = json.optString("downloadUrl", ""),
-                        mirrorDownloadUrl = json.optString("mirrorDownloadUrl", "")
+                        mirrorDownloadUrl = json.optString("mirrorDownloadUrl", ""),
+                        cdnDownloadUrl = json.optString("cdnDownloadUrl", "")
                     )
                 }
             } catch (e: Exception) {
@@ -119,18 +121,22 @@ object AppUpdateManager {
             .setMessage(message)
             .setCancelable(true)
             .setPositiveButton("立即更新") { _, _ ->
-                val targetUrl = info.mirrorDownloadUrl.ifEmpty { info.downloadUrl }
-                downloadAndInstallApk(context, targetUrl, info.versionName)
+                val candidateUrls = mutableListOf<String>()
+                if (info.mirrorDownloadUrl.isNotEmpty()) candidateUrls.add(info.mirrorDownloadUrl)
+                if (info.cdnDownloadUrl.isNotEmpty()) candidateUrls.add(info.cdnDownloadUrl)
+                candidateUrls.add("https://gh-proxy.com/https://github.com/mtk112456/NikonSync/releases/download/v${info.versionName}/NikonSync-v${info.versionName}.apk")
+                if (info.downloadUrl.isNotEmpty()) candidateUrls.add(info.downloadUrl)
+                downloadAndInstallApk(context, candidateUrls, info.versionName)
             }
             .setNegativeButton("稍后再说", null)
             .show()
     }
 
     @Suppress("DEPRECATION")
-    private fun downloadAndInstallApk(context: Context, downloadUrl: String, versionName: String) {
+    private fun downloadAndInstallApk(context: Context, downloadUrls: List<String>, versionName: String) {
         val progressDialog = ProgressDialog(context).apply {
             setTitle("正在下载新版本 v$versionName")
-            setMessage("准备开始下载...")
+            setMessage("正在连接极速下载节点...")
             setProgressStyle(ProgressDialog.STYLE_HORIZONTAL)
             max = 100
             setCancelable(false)
@@ -141,40 +147,69 @@ object AppUpdateManager {
             val destinationFile = File(context.externalCacheDir, "NikonSync_v${versionName}.apk")
             var downloadSuccess = false
 
-            try {
-                val url = URL(downloadUrl)
-                val conn = url.openConnection() as HttpURLConnection
-                conn.connectTimeout = 10000
-                conn.readTimeout = 20000
-                conn.instanceFollowRedirects = true
-                conn.connect()
+            for ((index, downloadUrl) in downloadUrls.withIndex() ) {
+                if (downloadSuccess) break
+                try {
+                    withContext(Dispatchers.Main) {
+                        progressDialog.setMessage("正在连接下载节点 (${index + 1}/${downloadUrls.size})...")
+                    }
 
-                val totalLength = conn.contentLength
-                var downloadedBytes = 0
+                    val url = URL(downloadUrl)
+                    val conn = url.openConnection() as HttpURLConnection
+                    conn.connectTimeout = 6000
+                    conn.readTimeout = 12000
+                    conn.instanceFollowRedirects = true
+                    conn.connect()
 
-                conn.inputStream.use { input ->
-                    FileOutputStream(destinationFile).use { output ->
-                        val buffer = ByteArray(8192)
-                        var read: Int
-                        while (input.read(buffer).also { read = it } != -1) {
-                            output.write(buffer, 0, read)
-                            downloadedBytes += read
-                            if (totalLength > 0) {
-                                val percent = (downloadedBytes * 100L / totalLength).toInt()
-                                withContext(Dispatchers.Main) {
-                                    progressDialog.progress = percent
-                                    val mbDownloaded = downloadedBytes / (1024.0 * 1024.0)
-                                    val mbTotal = totalLength / (1024.0 * 1024.0)
-                                    progressDialog.setMessage(String.format("已下载: %.1f MB / %.1f MB", mbDownloaded, mbTotal))
+                    if (conn.responseCode !in 200..299) {
+                        Log.w(TAG, "节点 $downloadUrl 返回状态码: ${conn.responseCode}，切换下一节点")
+                        conn.disconnect()
+                        continue
+                    }
+
+                    val totalLength = conn.contentLength
+                    var downloadedBytes = 0
+                    var lastTime = System.currentTimeMillis()
+                    var lastBytes = 0L
+                    var speedStr = ""
+
+                    conn.inputStream.use { input ->
+                        FileOutputStream(destinationFile).use { output ->
+                            val buffer = ByteArray(65536) // 64KB 高性能缓冲
+                            var read: Int
+                            while (input.read(buffer).also { read = it } != -1) {
+                                output.write(buffer, 0, read)
+                                downloadedBytes += read
+                                val now = System.currentTimeMillis()
+                                val timeDiff = now - lastTime
+                                if (timeDiff >= 400) {
+                                    val speedKB = (downloadedBytes - lastBytes) * 1000L / timeDiff / 1024L
+                                    speedStr = if (speedKB > 1024) String.format("%.1f MB/s", speedKB / 1024.0) else "$speedKB KB/s"
+                                    lastTime = now
+                                    lastBytes = downloadedBytes.toLong()
+                                }
+
+                                if (totalLength > 0) {
+                                    val percent = (downloadedBytes * 100L / totalLength).toInt()
+                                    withContext(Dispatchers.Main) {
+                                        progressDialog.progress = percent
+                                        val mbDownloaded = downloadedBytes / (1024.0 * 1024.0)
+                                        val mbTotal = totalLength / (1024.0 * 1024.0)
+                                        progressDialog.setMessage(String.format("已下载: %.1f MB / %.1f MB (%s)", mbDownloaded, mbTotal, speedStr))
+                                    }
                                 }
                             }
+                            output.flush()
                         }
-                        output.flush()
                     }
+                    if (destinationFile.exists() && destinationFile.length() > 1024 * 1024) {
+                        downloadSuccess = true
+                        Log.d(TAG, "成功通过节点 $downloadUrl 完成下载 (${destinationFile.length()} 字节)")
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "节点 $downloadUrl 下载异常: ${e.message}，自动尝试备用节点")
+                    if (destinationFile.exists()) destinationFile.delete()
                 }
-                downloadSuccess = true
-            } catch (e: Exception) {
-                Log.e(TAG, "下载安装包异常: ${e.message}", e)
             }
 
             withContext(Dispatchers.Main) {
@@ -182,7 +217,7 @@ object AppUpdateManager {
                 if (downloadSuccess && destinationFile.exists()) {
                     triggerInstall(context, destinationFile)
                 } else {
-                    Toast.makeText(context, "下载失败，请稍后重试或前往 GitHub 手动下载", Toast.LENGTH_LONG).show()
+                    Toast.makeText(context, "下载失败，请稍后重试或前往 GitHub 镜像手动下载", Toast.LENGTH_LONG).show()
                 }
             }
         }
