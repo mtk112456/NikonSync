@@ -19,6 +19,7 @@ import android.os.IBinder
 import android.provider.MediaStore
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import com.nikonsync.app.ptp.NikonCameraProfile
 import com.nikonsync.app.ptp.NikonPtpClient
 import com.nikonsync.app.ptp.PtpObjectInfo
 import com.nikonsync.app.ui.MainActivity
@@ -28,10 +29,10 @@ import java.util.Locale
 
 /**
  * 尼康相机后台长连接与即拍即传服务
- * 支持：
- * 1. 自动感知相机 Wi-Fi 热点连接并自动发起 PTP 握手 (零人工干预)
- * 2. 相机睡眠唤醒或 Wi-Fi 抖动后的智能自动重连 (带重试退避)
- * 3. 快门 ObjectAdded 监听与即拍即传 (格式过滤策略)
+ * 完全对齐原版 ZRelay 双状态机制：
+ * 1. 首次配对阶段：与相机向导握手，提取认证码并提交确认，随后断开等待用户按 OK 键保存
+ * 2. 日常传输阶段：复用已保存的专属 GUID 秒连，监听快门并即拍即传
+ * 3. 网络感知与断线恢复
  */
 class PhotoSyncService : Service() {
     companion object {
@@ -41,6 +42,7 @@ class PhotoSyncService : Service() {
 
         const val ACTION_START_SYNC = "com.nikonsync.action.START"
         const val ACTION_STOP_SYNC = "com.nikonsync.action.STOP"
+        const val ACTION_PAIR_CAMERA = "com.nikonsync.action.PAIR"
         const val EXTRA_CAMERA_IP = "extra_camera_ip"
         const val EXTRA_FORMAT_MODE = "extra_format_mode"
 
@@ -58,6 +60,8 @@ class PhotoSyncService : Service() {
         private set
     @Volatile var isConnecting = false
         private set
+    @Volatile var isPairing = false
+        private set
     @Volatile var lastPhotoUri: String? = null
         private set
     @Volatile var formatMode: Int = FORMAT_JPG_ONLY
@@ -74,6 +78,7 @@ class PhotoSyncService : Service() {
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
 
     @Volatile var onStatusChanged: ((message: String) -> Unit)? = null
+    @Volatile var onPairingSuccess: ((cameraName: String, code: String) -> Unit)? = null
     @Volatile var onNewPhotoSaved: ((uriString: String) -> Unit)? = null
 
     inner class LocalBinder : Binder() {
@@ -99,6 +104,14 @@ class PhotoSyncService : Service() {
                 startForeground(NOTIFICATION_ID, buildNotification("正在连接尼康相机 ($ip)..."))
                 startSync(ip, manual = false)
             }
+            ACTION_PAIR_CAMERA -> {
+                val rawIp = intent.getStringExtra(EXTRA_CAMERA_IP) ?: "192.168.0.1"
+                val ip = NetworkUtils.normalizeIp(rawIp)
+                currentIp = ip
+                isManualDisconnected = false
+                startForeground(NOTIFICATION_ID, buildNotification("正在执行相机首次配对..."))
+                startPairing(ip)
+            }
             ACTION_STOP_SYNC -> {
                 stopSync(manual = true)
                 stopForeground(STOP_FOREGROUND_REMOVE)
@@ -117,40 +130,27 @@ class PhotoSyncService : Service() {
             .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
             .build()
 
-        val callback = object : ConnectivityManager.NetworkCallback() {
+        networkCallback = object : ConnectivityManager.NetworkCallback() {
             override fun onAvailable(network: Network) {
-                autoRetryCount = 0
-                if (isAutoReconnectEnabled && !isCameraConnected && !isConnecting) {
-                    val detectedIp = NetworkUtils.getCameraIp(this@PhotoSyncService, currentIp)
-                    currentIp = detectedIp
-                    Log.i(TAG, "Wi-Fi 已连接，探测到相机 IP: $detectedIp，准备自动连接")
-                    serviceScope.launch {
-                        delay(1200) // 等待 Wi-Fi IP 分配及相机端口响应就绪
-                        if (isAutoReconnectEnabled && !isCameraConnected && !isConnecting && !isManualDisconnected) {
-                            onStatusChanged?.invoke("检测到已连上相机 Wi-Fi，正在自动连接 ($detectedIp)...")
-                            startSyncInternal(detectedIp)
-                        }
-                    }
+                if (isCameraConnected || isConnecting || isManualDisconnected || isPairing) return
+                if (NetworkUtils.isWifiConnected(this@PhotoSyncService)) {
+                    val targetIp = NetworkUtils.getCameraIp(this@PhotoSyncService)
+                    currentIp = targetIp
+                    autoRetryCount = 0
+                    onStatusChanged?.invoke("检测到 Wi-Fi 已连接，正在尝试接入相机...")
+                    startSync(targetIp, manual = false)
                 }
             }
 
             override fun onLost(network: Network) {
-                Log.w(TAG, "Wi-Fi 网络断开")
-                autoRetryCount = 0
-                reconnectJob?.cancel()
                 if (isCameraConnected) {
-                    onStatusChanged?.invoke("Wi-Fi 已断开，等待重新连接相机热点...")
-                    stopSyncInternal(manual = false)
+                    onStatusChanged?.invoke("Wi-Fi 已断开，等待重新连接...")
+                    ptpClient?.disconnect()
+                    isCameraConnected = false
                 }
             }
         }
-
-        networkCallback = callback
-        try {
-            cm.registerNetworkCallback(request, callback)
-        } catch (e: Exception) {
-            Log.e(TAG, "注册网络回调异常: ${e.message}")
-        }
+        cm.registerNetworkCallback(request, networkCallback!!)
     }
 
     fun startSync(ip: String, manual: Boolean = false) {
@@ -161,6 +161,19 @@ class PhotoSyncService : Service() {
         }
         currentIp = normalized
         reconnectJob?.cancel()
+        startSyncInternal(normalized)
+    }
+
+    /**
+     * 主动发起首次配对向导（重置旧配置并生成全新 GUID）
+     */
+    fun startPairing(ip: String) {
+        val normalized = NetworkUtils.normalizeIp(ip)
+        currentIp = normalized
+        isManualDisconnected = false
+        autoRetryCount = 0
+        reconnectJob?.cancel()
+        NikonCameraProfile.clearProfile(this)
         startSyncInternal(normalized)
     }
 
@@ -184,7 +197,7 @@ class PhotoSyncService : Service() {
                     onStatusChanged?.invoke(msg)
                     updateNotification(msg)
 
-                    if (!connected && isAutoReconnectEnabled && !isManualDisconnected) {
+                    if (!connected && isAutoReconnectEnabled && !isManualDisconnected && !isPairing) {
                         scheduleReconnect()
                     }
                 }
@@ -195,11 +208,56 @@ class PhotoSyncService : Service() {
                     }
                 }
 
-                client.connect()
+                // 核心对齐：检查本地是否已有配对成功的凭据
+                if (!NikonCameraProfile.hasPairedProfile(this@PhotoSyncService)) {
+                    // 【阶段 1：首次配对向导】
+                    isPairing = true
+                    onStatusChanged?.invoke("检测到尚未配对相机，正在启动首次配对向导...")
+                    val guid = NikonCameraProfile.generateNewPairingGuid()
+                    val friendlyName = NikonCameraProfile.generateDefaultFriendlyName()
+
+                    val result = client.pairCamera(guid, friendlyName) { code ->
+                        onStatusChanged?.invoke("已从相机提取配对码 [$code]，已提交配对确认！")
+                    }
+
+                    isPairing = false
+                    isConnecting = false
+
+                    when (result) {
+                        is NikonPtpClient.PairingResult.Success -> {
+                            NikonCameraProfile.savePairedProfile(
+                                this@PhotoSyncService,
+                                guid,
+                                friendlyName,
+                                result.cameraName,
+                                ip
+                            )
+                            val okMsg = "🎉 配对已确认！请在相机屏幕上按下 OK / J 键确认保存配置，然后点击【连接相机】。"
+                            onStatusChanged?.invoke(okMsg)
+                            updateNotification("配对完成：请在相机上按 OK 键")
+                            onPairingSuccess?.invoke(result.cameraName, result.pairingCode)
+                        }
+                        is NikonPtpClient.PairingResult.Error -> {
+                            val failMsg = "配对失败: ${result.message}"
+                            onStatusChanged?.invoke(failMsg)
+                            updateNotification(failMsg)
+                        }
+                    }
+                } else {
+                    // 【阶段 2：日常传输会话】
+                    val guid = NikonCameraProfile.getPairedGuid(this@PhotoSyncService)!!
+                    val friendlyName = NikonCameraProfile.getPairedFriendlyName(this@PhotoSyncService)
+                    val success = client.connect(guid, friendlyName)
+                    if (!success) {
+                        isConnecting = false
+                        isCameraConnected = false
+                    }
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "启动通信异常: ${e.message}", e)
                 isConnecting = false
                 isCameraConnected = false
+                isPairing = false
                 if (isAutoReconnectEnabled && !isManualDisconnected) {
                     scheduleReconnect()
                 }
@@ -208,10 +266,10 @@ class PhotoSyncService : Service() {
     }
 
     /**
-     * 智能自动重试调度器（有最大次数限制，避免无限刷屏）
+     * 智能自动重试调度器
      */
     private fun scheduleReconnect() {
-        if (!isAutoReconnectEnabled || isManualDisconnected || isCameraConnected || isConnecting) return
+        if (!isAutoReconnectEnabled || isManualDisconnected || isCameraConnected || isConnecting || isPairing) return
         if (autoRetryCount >= MAX_AUTO_RETRIES) {
             onStatusChanged?.invoke("未连接到相机，等待连上相机 Wi-Fi 热点...")
             updateNotification("未连接到相机，等待连上 Wi-Fi")
@@ -223,51 +281,11 @@ class PhotoSyncService : Service() {
             autoRetryCount++
             val waitSec = if (autoRetryCount == 1) 3 else 5
             delay(waitSec * 1000L)
-            if (!isActive || isManualDisconnected || isCameraConnected || isConnecting) return@launch
+            if (!isActive || isManualDisconnected || isCameraConnected || isConnecting || isPairing) return@launch
 
             if (NetworkUtils.isWifiConnected(this@PhotoSyncService)) {
-                val ip = NetworkUtils.getCameraIp(this@PhotoSyncService, currentIp)
-                currentIp = ip
-                startSyncInternal(ip)
-            } else {
-                onStatusChanged?.invoke("等待连上相机 Wi-Fi 热点...")
-            }
-        }
-    }
-
-    private suspend fun handleNewCapturedObject(client: NikonPtpClient, handle: Int) {
-        onStatusChanged?.invoke("检测到快门拍照，正在获取对象元数据...")
-        val info = client.getObjectInfo(handle)
-        val filename = info?.filename ?: "DSC_${handle}.JPG"
-        val isRaw = info?.isRaw == true || filename.endsWith(".nef", true) || filename.endsWith(".nrw", true)
-        val isJpg = info?.isJpeg == true || filename.endsWith(".jpg", true) || filename.endsWith(".jpeg", true)
-
-        // 格式过滤校验
-        if (formatMode == FORMAT_JPG_ONLY && isRaw) {
-            onStatusChanged?.invoke("根据格式策略过滤: 跳过 RAW 文件 ($filename)")
-            return
-        }
-        if (formatMode == FORMAT_RAW_ONLY && isJpg) {
-            onStatusChanged?.invoke("根据格式策略过滤: 跳过 JPG 文件 ($filename)")
-            return
-        }
-
-        onStatusChanged?.invoke("正在拉取照片: $filename (${formatFileSize(info?.compressedSize ?: 0)})...")
-        val photoBytes = client.downloadObject(handle)
-        if (photoBytes != null && photoBytes.isNotEmpty()) {
-            savePhotoToGallery(photoBytes, filename, isRaw)
-        } else {
-            onStatusChanged?.invoke("拉取照片失败: $filename")
-        }
-    }
-
-    fun triggerShutter() {
-        serviceScope.launch {
-            val ok = ptpClient?.triggerShutter() ?: false
-            if (ok) {
-                onStatusChanged?.invoke("远程快门指令已触发")
-            } else {
-                onStatusChanged?.invoke("远程快门指令发送失败，请检查相机状态")
+                onStatusChanged?.invoke("正在自动重新连接相机 (第 $autoRetryCount 次尝试)...")
+                startSyncInternal(currentIp)
             }
         }
     }
@@ -277,61 +295,103 @@ class PhotoSyncService : Service() {
             isManualDisconnected = true
         }
         reconnectJob?.cancel()
-        stopSyncInternal(manual)
-    }
-
-    private fun stopSyncInternal(manual: Boolean) {
-        ptpClient?.disconnect()
-        ptpClient = null
-        isCameraConnected = false
         isConnecting = false
-        val msg = if (manual) "已手动断开相机连接" else "已与相机断开连接"
-        onStatusChanged?.invoke(msg)
-        updateNotification(msg)
+        isPairing = false
+        ptpClient?.disconnect()
+        isCameraConnected = false
+        onStatusChanged?.invoke(if (manual) "已手动断开相机连接" else "已与相机断开连接")
+        updateNotification(if (manual) "已手动断开" else "未连接")
     }
 
-    fun savePhotoToGallery(bytes: ByteArray, preferredName: String, isRaw: Boolean) {
-        try {
-            val mime = if (isRaw) "image/x-nikon-nef" else "image/jpeg"
-            val values = ContentValues().apply {
-                put(MediaStore.Images.Media.DISPLAY_NAME, preferredName)
-                put(MediaStore.Images.Media.MIME_TYPE, mime)
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/NikonSync")
-                    put(MediaStore.Images.Media.IS_PENDING, 1)
-                }
+    fun triggerShutter() {
+        serviceScope.launch {
+            val success = ptpClient?.triggerShutter() ?: false
+            if (success) {
+                onStatusChanged?.invoke("远程快门指令发送成功！")
+            } else {
+                onStatusChanged?.invoke("远程快门指令发送失败（相机可能未就绪）")
             }
-
-            val uri = contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
-            if (uri != null) {
-                contentResolver.openOutputStream(uri)?.use { out ->
-                    out.write(bytes)
-                    out.flush()
-                }
-
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    values.clear()
-                    values.put(MediaStore.Images.Media.IS_PENDING, 0)
-                    contentResolver.update(uri, values, null, null)
-                }
-
-                Log.i(TAG, "照片已安全保存到系统相册: $uri ($preferredName)")
-                lastPhotoUri = uri.toString()
-                onStatusChanged?.invoke("已存入系统相册 Pictures/NikonSync: $preferredName")
-                onNewPhotoSaved?.invoke(uri.toString())
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "保存相册异常: ${e.message}", e)
-            onStatusChanged?.invoke("保存照片失败: ${e.message}")
         }
     }
 
-    private fun formatFileSize(bytes: Long): String {
-        if (bytes <= 0) return "计算中"
-        return when {
-            bytes >= 1024 * 1024 -> String.format(Locale.US, "%.1f MB", bytes / (1024.0 * 1024.0))
-            bytes >= 1024 -> String.format(Locale.US, "%.1f KB", bytes / 1024.0)
-            else -> "$bytes B"
+    private suspend fun handleNewCapturedObject(client: NikonPtpClient, handle: Int) {
+        try {
+            onStatusChanged?.invoke("正在读取对象信息 (Handle=$handle)...")
+            val info = client.getObjectInfo(handle) ?: return
+
+            val shouldDownload = when (formatMode) {
+                FORMAT_RAW_ONLY -> info.isRaw
+                FORMAT_JPG_ONLY -> info.isJpeg
+                else -> true
+            }
+
+            if (!shouldDownload) {
+                onStatusChanged?.invoke("跳过文件: ${info.filename} (格式过滤)")
+                return
+            }
+
+            val sizeMB = String.format(Locale.US, "%.1f", info.compressedSize / 1048576.0)
+            onStatusChanged?.invoke("正在接收 ${info.filename} ($sizeMB MB)...")
+            updateNotification("正在接收 ${info.filename} ($sizeMB MB)...")
+
+            val fileData = client.downloadObject(handle)
+            if (fileData != null) {
+                val uri = saveToMediaStore(info.filename, fileData, info.isRaw)
+                if (uri != null) {
+                    lastPhotoUri = uri.toString()
+                    onNewPhotoSaved?.invoke(uri.toString())
+                    onStatusChanged?.invoke("已存入系统相册: ${info.filename}")
+                    updateNotification("已同步: ${info.filename}")
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "下载保存照片异常: ${e.message}", e)
+            onStatusChanged?.invoke("同步照片失败: ${e.message}")
+        }
+    }
+
+    private fun saveToMediaStore(filename: String, data: ByteArray, isRaw: Boolean): android.net.Uri? {
+        val resolver = contentResolver
+        val mimeType = when {
+            filename.endsWith(".jpg", ignoreCase = true) || filename.endsWith(".jpeg", ignoreCase = true) -> "image/jpeg"
+            filename.endsWith(".nef", ignoreCase = true) -> "image/x-nikon-nef"
+            filename.endsWith(".nrw", ignoreCase = true) -> "image/x-nikon-nrw"
+            else -> "image/jpeg"
+        }
+
+        val relativePath = "${Environment.DIRECTORY_DCIM}/NikonSync"
+
+        val values = ContentValues().apply {
+            put(MediaStore.Images.Media.DISPLAY_NAME, filename)
+            put(MediaStore.Images.Media.MIME_TYPE, mimeType)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                put(MediaStore.Images.Media.RELATIVE_PATH, relativePath)
+                put(MediaStore.Images.Media.IS_PENDING, 1)
+            }
+        }
+
+        val collection = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+        } else {
+            MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+        }
+
+        val uri = resolver.insert(collection, values) ?: return null
+        try {
+            resolver.openOutputStream(uri)?.use { out ->
+                out.write(data)
+                out.flush()
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                values.clear()
+                values.put(MediaStore.Images.Media.IS_PENDING, 0)
+                resolver.update(uri, values, null, null)
+            }
+            return uri
+        } catch (e: Exception) {
+            Log.e(TAG, "写入 MediaStore 失败: ${e.message}", e)
+            resolver.delete(uri, null, null)
+            return null
         }
     }
 
@@ -339,45 +399,43 @@ class PhotoSyncService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "NikonSync 后台实时传输服务",
+                "尼康照片即拍即传服务",
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
-                description = "保持与尼康相机的长连接并实时传输照片"
+                description = "保持与尼康相机的长连接并在后台接收新照片"
+                setShowBadge(false)
             }
-            val manager = getSystemService(NotificationManager::class.java)
-            manager.createNotificationChannel(channel)
+            getSystemService(NotificationManager::class.java)?.createNotificationChannel(channel)
         }
     }
 
-    private fun buildNotification(text: String): Notification {
+    private fun buildNotification(statusText: String): Notification {
+        val intent = Intent(this, MainActivity::class.java)
         val pendingIntent = PendingIntent.getActivity(
-            this, 0,
-            Intent(this, MainActivity::class.java),
+            this, 0, intent,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
-
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("NikonSync 相机伴侣")
-            .setContentText(text)
+            .setContentTitle("NikonSync 即拍即传")
+            .setContentText(statusText)
             .setSmallIcon(android.R.drawable.ic_menu_camera)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
             .build()
     }
 
-    private fun updateNotification(text: String) {
-        val manager = getSystemService(NotificationManager::class.java)
-        manager.notify(NOTIFICATION_ID, buildNotification(text))
+    private fun updateNotification(statusText: String) {
+        val manager = getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+        manager?.notify(NOTIFICATION_ID, buildNotification(statusText))
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        reconnectJob?.cancel()
+        serviceScope.cancel()
         networkCallback?.let {
             val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
-            try { cm?.unregisterNetworkCallback(it) } catch (_: Exception) {}
+            cm?.unregisterNetworkCallback(it)
         }
-        stopSync(manual = true)
-        serviceScope.cancel()
+        ptpClient?.disconnect()
     }
 }

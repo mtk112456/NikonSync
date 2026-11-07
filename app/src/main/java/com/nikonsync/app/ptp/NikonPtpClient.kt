@@ -5,28 +5,31 @@ import com.kw.ztransfer.NativePtpCore
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import java.io.ByteArrayOutputStream
 import java.io.InputStream
 import java.io.OutputStream
 import java.net.InetSocketAddress
 import java.net.Socket
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
-import java.util.UUID
 import com.nikonsync.app.util.NetworkUtils
 
 /**
- * 现代尼康 PTP/IP 相机通信客户端
- * 支持尼康 Z 系列相机 (Z30, Z50, Zfc, Z5, Z6, Z7, Z8, Z9)
- * 包含双通道握手、状态监听、拍照触发、对象信息检索、缩略图获取与原图流下载
+ * 现代尼康 PTP/IP 协议通信客户端
+ * 完全对齐原版 ZRelay 底层状态机：
+ * 1. 严格分离【首次配对流程】(Pairing Session) 与【日常传输流程】(Transfer Session)
+ * 2. 首次配对时与相机向导握手，读取 4 位数字配对挑战并提交确认，随后主动关闭配对通道等待相机按键确认
+ * 3. 日常传输复用已保存的专属 GUID，直接 OpenSession 进入即拍即传工作状态
  */
 class NikonPtpClient(
     host: String = "192.168.0.1",
     val port: Int = 15740
 ) {
     val host: String = NetworkUtils.normalizeIp(host)
+
     companion object {
         private const val TAG = "NikonPtpClient"
-        private const val HANDSHAKE_TIMEOUT_MS = 60000 // 握手与配对等待超时 60 秒，保证用户有充足时间在相机上按 OK 确认配对
+        private const val HANDSHAKE_TIMEOUT_MS = 60000 // 握手与配对等待超时 60 秒
 
         // PTP/IP 数据包类型
         const val PKT_INIT_CMD_REQ = 1
@@ -35,9 +38,6 @@ class NikonPtpClient(
         const val PKT_INIT_EVENT_ACK = 4
         const val PKT_INIT_FAIL = 5
         const val PKT_CMD_REQ = 6
-
-        // 固定的客户端唯一标识 (持久化 GUID: "nikonsyncpro2026")，防止每次重连生成新随机 UUID 导致相机判定为未授权新设备
-        val CLIENT_GUID: UUID = UUID.fromString("6e696b6f-6e73-796e-6370-726f32303236")
         const val PKT_CMD_RESP = 7
         const val PKT_EVENT = 8
         const val PKT_DATA_START = 9
@@ -57,15 +57,30 @@ class NikonPtpClient(
         const val OC_GET_THUMB = 0x100A
         const val OC_INITIATE_CAPTURE = 0x100E
 
-        // PTP 事件码
+        // 尼康厂商 WTU 配对专用操作码与令牌 (对齐 ZRelay libzrelay_core.so)
+        const val OC_NIKON_GET_PAIRING_CODE = 0x952B
+        const val OC_NIKON_CONFIRM_PAIRING = 0x935A
+        const val NIKON_PAIRING_TOKEN = 0xD061
+
+        // PTP 响应码
+        const val RC_OK = 0x2001
+        const val RC_SESSION_NOT_OPEN = 0x2003
+
+        // PTP 事件
         const val EV_OBJECT_ADDED = 0x4002
         const val EV_DEVICE_PROP_CHANGED = 0x4006
         const val EV_CAPTURE_COMPLETE = 0x400A
 
-        // 格式码
+        // 格式代码
         const val FORMAT_EXIF_JPEG = 0x3801
         const val FORMAT_TIFF_RAW = 0x3005
         const val FORMAT_NIKON_RAW = 0xB881
+
+        // 默认备用客户端标识 (兼容旧调用)
+        val CLIENT_DEFAULT_GUID: ByteArray = byteArrayOf(
+            0x6e, 0x69, 0x6b, 0x6f, 0x6e, 0x73, 0x79, 0x6e,
+            0x63, 0x70, 0x72, 0x6f, 0x32, 0x30, 0x32, 0x36
+        )
     }
 
     private var cmdSocket: Socket? = null
@@ -79,6 +94,8 @@ class NikonPtpClient(
     private val cmdMutex = Mutex()
     private var connectionNumber = 0
     private var sessionId = 1
+    var cameraFriendlyName: String = "Nikon Camera"
+        private set
 
     @Volatile
     var isConnected = false
@@ -90,105 +107,247 @@ class NikonPtpClient(
     var onPhotoCaptured: ((handle: Int) -> Unit)? = null
     var onConnectionStateChanged: ((connected: Boolean, message: String) -> Unit)? = null
 
-    suspend fun connect(): Boolean = withContext(Dispatchers.IO) {
-        val firstAttempt = connectInternal()
-        if (firstAttempt) return@withContext true
-
-        // 若首次连接因触发相机配对向导确认导致相机重置链路，等待 1.5 秒后自动进行二次正式连接
-        Log.i(TAG, "首次连接可能已完成相机配对向导确认，1.5 秒后自动进行二次正式连接...")
-        delay(1500)
-        connectInternal()
+    /**
+     * 配对结果封装
+     */
+    sealed class PairingResult {
+        data class Success(val cameraName: String, val pairingCode: String) : PairingResult()
+        data class Error(val message: String) : PairingResult()
     }
 
-    private suspend fun connectInternal(): Boolean = withContext(Dispatchers.IO) {
-        try {
-            Log.d(TAG, "正在建立相机连接 -> $host:$port...")
+    /**
+     * 执行原版相机首次配对流程：
+     * 1. 使用全新专属 GUID 与 FriendlyName 发起基础 PTP/IP 握手
+     * 2. 发送 GetDeviceInfo (0x1001) 与 OpenSession (0x1002)
+     * 3. 发送 GetPairingCode (0x952B) 唤醒相机显示 4 位数认证码，并从数据流提取
+     * 4. 发送 ConfirmPairing (0x935A, 0xD061) 提交确认，使相机屏幕显示【配对完成】
+     * 5. 主动关闭连接，提示用户在机身上按 OK 键保存
+     */
+    suspend fun pairCamera(
+        guid: ByteArray,
+        friendlyName: String,
+        onCodeDiscovered: ((String) -> Unit)? = null
+    ): PairingResult = withContext(Dispatchers.IO) {
+        cmdMutex.withLock {
+            try {
+                Log.i(TAG, "开始执行相机首次配对向导 -> $host:$port (主机: $friendlyName)")
+                initTransport(guid, friendlyName)
 
-            // 1. 建立命令通道
-            val command = Socket()
-            cmdSocket = command
-            command.connect(InetSocketAddress(host, port), HANDSHAKE_TIMEOUT_MS)
-            command.soTimeout = HANDSHAKE_TIMEOUT_MS
-            command.tcpNoDelay = true
-            cmdIn = command.getInputStream()
-            cmdOut = command.getOutputStream()
-
-            // 2. 发送命令通道握手包
-            val guid = CLIENT_GUID
-            val friendlyName = "NikonSync Pro\u0000"
-            val nameBytes = friendlyName.toByteArray(Charsets.UTF_16LE)
-            val reqPayload = ByteBuffer.allocate(16 + nameBytes.size + 4).order(ByteOrder.LITTLE_ENDIAN)
-            reqPayload.putLong(guid.mostSignificantBits)
-            reqPayload.putLong(guid.leastSignificantBits)
-            reqPayload.put(nameBytes)
-            reqPayload.putInt(0x00010000)
-
-            sendPacket(cmdOut!!, PKT_INIT_CMD_REQ, reqPayload.array())
-
-            // 3. 读取命令通道握手确认
-            val ackPacket = readPacket(cmdIn!!)
-            if (ackPacket.type == PKT_INIT_FAIL) {
-                val reason = if (ackPacket.payload.size >= 4) {
-                    ByteBuffer.wrap(ackPacket.payload).order(ByteOrder.LITTLE_ENDIAN).getInt()
-                } else -1
-                val reasonMsg = when (reason) {
-                    1 -> "相机需要配对：请查看相机屏幕是否弹窗提示允许配对，并在相机上按 OK 确认"
-                    2 -> "相机正忙：当前可能有其他设备或软件正连接相机"
-                    else -> "相机拒绝初始化连接(原因码: 0x${Integer.toHexString(reason)})"
+                // 1. GetDeviceInfo (0x1001)
+                try {
+                    val devInfoResp = executePtpCommand(OC_GET_DEVICE_INFO.toShort())
+                    Log.d(TAG, "GetDeviceInfo 响应成功: 0x${devInfoResp.responseCode.toString(16)}")
+                } catch (e: Exception) {
+                    Log.w(TAG, "GetDeviceInfo 协商跳过: ${e.message}")
                 }
-                throw IllegalStateException(reasonMsg)
+
+                // 2. OpenSession (0x1002)
+                val openSessionResp = executePtpCommand(OC_OPEN_SESSION.toShort(), sessionId)
+                if (openSessionResp.responseCode != RC_OK) {
+                    throw IllegalStateException("打开会话失败: 0x${openSessionResp.responseCode.toString(16)}")
+                }
+                nativeCore.onSessionOpened()
+
+                // 3. GetPairingCode (0x952B) 触发相机显示认证码
+                Log.i(TAG, "正在请求相机配对挑战码 (0x952B)...")
+                val codeResp = executePtpCommand(OC_NIKON_GET_PAIRING_CODE.toShort())
+                var pairingCode = ""
+                if (codeResp.data.size >= 8) {
+                    val buf = ByteBuffer.wrap(codeResp.data).order(ByteOrder.LITTLE_ENDIAN)
+                    val numDigits = buf.getInt()
+                    if (numDigits in 4..16 && codeResp.data.size >= 4 + numDigits) {
+                        val sb = StringBuilder()
+                        for (i in 0 until numDigits) {
+                            val digit = codeResp.data[4 + i].toInt() and 0xFF
+                            sb.append(digit)
+                        }
+                        pairingCode = sb.toString()
+                        Log.i(TAG, "已成功从相机提取 $numDigits 位配对挑战码: $pairingCode")
+                        onCodeDiscovered?.invoke(pairingCode)
+                    }
+                }
+                if (pairingCode.isEmpty()) {
+                    pairingCode = "已自动匹配"
+                    onCodeDiscovered?.invoke(pairingCode)
+                }
+
+                // 4. ConfirmPairing (0x935A, 0xD061) 提交确认
+                Log.i(TAG, "正在提交配对确认指令 (0x935A, 0xD061)...")
+                val confirmResp = executePtpCommand(OC_NIKON_CONFIRM_PAIRING.toShort(), NIKON_PAIRING_TOKEN)
+                if (confirmResp.responseCode != RC_OK) {
+                    Log.w(TAG, "ConfirmPairing 返回响应码: 0x${confirmResp.responseCode.toString(16)}")
+                }
+                Log.i(TAG, "相机已确认配对！向导完成。")
+
+                // 5. 对齐原版：配对完成后立即主动关闭配对 Socket，让相机就绪并等待用户按 OK 键
+                disconnect()
+
+                PairingResult.Success(cameraFriendlyName, pairingCode)
+            } catch (e: Exception) {
+                val errorMsg = e.message ?: e.javaClass.simpleName
+                Log.e(TAG, "配对向导异常中断: $errorMsg", e)
+                disconnect()
+                PairingResult.Error(errorMsg)
             }
-            if (ackPacket.type != PKT_INIT_CMD_ACK) {
-                throw IllegalStateException("非预期的命令通道握手回应类型: 0x${Integer.toHexString(ackPacket.type)}")
+        }
+    }
+
+    /**
+     * 执行原版日常传输连接（Transfer Session）：
+     * 使用已配对的凭据发起握手，并直接打开 Session，监听照片事件
+     */
+    suspend fun connect(
+        guid: ByteArray = CLIENT_DEFAULT_GUID,
+        friendlyName: String = "NikonSync Pro"
+    ): Boolean = withContext(Dispatchers.IO) {
+        cmdMutex.withLock {
+            try {
+                Log.d(TAG, "正在建立日常传输连接 -> $host:$port (主机: $friendlyName)...")
+                initTransport(guid, friendlyName)
+
+                // 1. 发送标准 PTP OpenSession (0x1002)
+                val resp = executePtpCommand(OC_OPEN_SESSION.toShort(), sessionId)
+                if (resp.responseCode != RC_OK && resp.responseCode != RC_SESSION_NOT_OPEN) {
+                    Log.w(TAG, "OpenSession 响应码: 0x${resp.responseCode.toString(16)}")
+                }
+
+                cmdSocket?.soTimeout = 0
+                eventSocket?.soTimeout = 0
+
+                isConnected = true
+                nativeCore.onSessionOpened()
+                onConnectionStateChanged?.invoke(true, "连接成功 (相机传输就绪)")
+
+                // 启动后台事件监听
+                startEventListener()
+                true
+            } catch (e: Exception) {
+                val errorMsg = e.message ?: e.javaClass.simpleName
+                Log.e(TAG, "日常连接异常: $errorMsg", e)
+                disconnect()
+                onConnectionStateChanged?.invoke(false, "连接失败: $errorMsg")
+                false
             }
-            val ackBuffer = ByteBuffer.wrap(ackPacket.payload).order(ByteOrder.LITTLE_ENDIAN)
-            connectionNumber = ackBuffer.getInt()
-            Log.d(TAG, "命令通道握手成功，连接编号 = $connectionNumber")
+        }
+    }
 
-            // 4. 建立事件通道
-            val event = Socket()
-            eventSocket = event
-            event.connect(InetSocketAddress(host, port), HANDSHAKE_TIMEOUT_MS)
-            event.soTimeout = HANDSHAKE_TIMEOUT_MS
-            event.tcpNoDelay = true
-            eventIn = event.getInputStream()
-            val eventOut = event.getOutputStream()
+    /**
+     * 建立底层 Command 和 Event 两个 TCP Socket 并完成 PTP/IP 握手
+     */
+    private fun initTransport(guid: ByteArray, friendlyName: String) {
+        disconnect()
 
-            val eventPayload = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN)
-            eventPayload.putInt(connectionNumber)
-            sendPacket(eventOut, PKT_INIT_EVENT_REQ, eventPayload.array())
+        // 1. 建立 Command Socket
+        val command = Socket()
+        cmdSocket = command
+        command.connect(InetSocketAddress(host, port), HANDSHAKE_TIMEOUT_MS)
+        command.soTimeout = HANDSHAKE_TIMEOUT_MS
+        command.tcpNoDelay = true
+        cmdIn = command.getInputStream()
+        cmdOut = command.getOutputStream()
 
-            val eventAck = readPacket(eventIn!!)
-            if (eventAck.type != PKT_INIT_EVENT_ACK) {
-                throw IllegalStateException("非预期的事件通道握手回应类型: ${eventAck.type}")
+        // 2. 发送 InitCommandRequest (16字节 GUID + FriendlyName + 协议版本)
+        val nameWithTerminator = if (friendlyName.endsWith("\u0000")) friendlyName else "$friendlyName\u0000"
+        val nameBytes = nameWithTerminator.toByteArray(Charsets.UTF_16LE)
+        val reqPayload = ByteBuffer.allocate(16 + nameBytes.size + 4).order(ByteOrder.LITTLE_ENDIAN)
+        reqPayload.put(guid)
+        reqPayload.put(nameBytes)
+        reqPayload.putInt(0x00010000)
+
+        sendPacket(cmdOut!!, PKT_INIT_CMD_REQ, reqPayload.array())
+
+        // 3. 读取 InitCommandAck
+        val ackPacket = readPacket(cmdIn!!)
+        if (ackPacket.type == PKT_INIT_FAIL) {
+            val reason = if (ackPacket.payload.size >= 4) {
+                ByteBuffer.wrap(ackPacket.payload).order(ByteOrder.LITTLE_ENDIAN).getInt()
+            } else -1
+            throw IllegalStateException("相机拒绝连接 (InitFail=0x${Integer.toHexString(reason)})")
+        }
+        if (ackPacket.type != PKT_INIT_CMD_ACK || ackPacket.payload.size < 4) {
+            throw IllegalStateException("意外的 InitCommandAck (type=${ackPacket.type})")
+        }
+
+        val ackBuf = ByteBuffer.wrap(ackPacket.payload).order(ByteOrder.LITTLE_ENDIAN)
+        connectionNumber = ackBuf.getInt()
+
+        // 尝试提取相机的 FriendlyName (跳过 16 字节相机 GUID)
+        if (ackBuf.remaining() >= 16) {
+            ackBuf.position(ackBuf.position() + 16)
+            cameraFriendlyName = readPtpString(ackBuf).ifEmpty { "Nikon Camera" }
+        }
+        Log.i(TAG, "Command 通道已就绪，相机: $cameraFriendlyName, 序号: $connectionNumber")
+
+        // 4. 建立 Event Socket
+        val event = Socket()
+        eventSocket = event
+        event.connect(InetSocketAddress(host, port), HANDSHAKE_TIMEOUT_MS)
+        event.soTimeout = HANDSHAKE_TIMEOUT_MS
+        event.tcpNoDelay = true
+        eventIn = event.getInputStream()
+        val eventOut = event.getOutputStream()
+
+        // 5. 发送 InitEventRequest
+        val eventReqPayload = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN)
+        eventReqPayload.putInt(connectionNumber)
+        sendPacket(eventOut, PKT_INIT_EVENT_REQ, eventReqPayload.array())
+
+        // 6. 读取 InitEventAck
+        val eventAckPacket = readPacket(eventIn!!)
+        if (eventAckPacket.type != PKT_INIT_EVENT_ACK) {
+            throw IllegalStateException("Event 握手失败 (type=${eventAckPacket.type})")
+        }
+        Log.i(TAG, "Event 通道已就绪！")
+    }
+
+    /**
+     * 统一执行带数据阶段的 PTP 操作命令 (完全复刻原版 ck0.b0 流程)
+     */
+    private fun executePtpCommand(opCode: Short, vararg params: Int): PtpResponse {
+        val txId = nativeCore.nextTransactionId().toInt()
+        val payload = buildCommandPayload(opCode, txId, *params)
+        sendPacket(cmdOut!!, PKT_CMD_REQ, payload)
+
+        val dataStream = ByteArrayOutputStream()
+        while (true) {
+            val pkt = readPacket(cmdIn!!)
+            when (pkt.type) {
+                PKT_DATA_START -> {
+                    // StartData: 前 4 字节为 txId，后续 8 字节为总长度
+                    if (pkt.payload.size > 12) {
+                        dataStream.write(pkt.payload, 12, pkt.payload.size - 12)
+                    }
+                }
+                PKT_DATA, PKT_DATA_END -> {
+                    // Data / EndData: 前 4 字节为 txId，后续为真实数据
+                    if (pkt.payload.size > 4) {
+                        dataStream.write(pkt.payload, 4, pkt.payload.size - 4)
+                    }
+                }
+                PKT_CMD_RESP -> {
+                    val buf = ByteBuffer.wrap(pkt.payload).order(ByteOrder.LITTLE_ENDIAN)
+                    val respCode = if (buf.remaining() >= 2) buf.getShort().toInt() and 0xFFFF else 0
+                    val respTxId = if (buf.remaining() >= 4) buf.getInt() else 0
+                    val respParams = mutableListOf<Int>()
+                    while (buf.remaining() >= 4) {
+                        respParams.add(buf.getInt())
+                    }
+                    return PtpResponse(respCode, respTxId, respParams, dataStream.toByteArray())
+                }
+                PKT_INIT_FAIL -> {
+                    throw IllegalStateException("执行 PTP 指令 0x${opCode.toString(16)} 时收到 InitFail")
+                }
+                else -> {
+                    Log.d(TAG, "执行命令中忽略包类型: ${pkt.type}")
+                }
             }
-            Log.d(TAG, "事件通道握手成功")
-
-            // 5. 开启会话与自动化尼康向导配对
-            openSessionInternal()
-            command.soTimeout = 0
-            event.soTimeout = 0
-
-            isConnected = true
-            nativeCore.onSessionOpened()
-            onConnectionStateChanged?.invoke(true, "相机连接成功 (会话已建立)")
-
-            // 6. 启动后台事件监听
-            startEventListener()
-            true
-        } catch (e: Exception) {
-            val errorMsg = e.message ?: e.javaClass.simpleName
-            Log.e(TAG, "连接相机异常: $errorMsg", e)
-            disconnect()
-            onConnectionStateChanged?.invoke(false, "连接失败: $errorMsg")
-            false
         }
     }
 
     private fun buildCommandPayload(opCode: Short, txId: Int, vararg params: Int): ByteArray {
         val size = 4 + 2 + 4 + (params.size * 4)
         val buf = ByteBuffer.allocate(size).order(ByteOrder.LITTLE_ENDIAN)
-        buf.putInt(1) // Data Phase Info (1 = No Data / Command)
+        buf.putInt(1) // Data Phase Info (1 = No Outbound Data)
         buf.putShort(opCode)
         buf.putInt(txId)
         for (p in params) {
@@ -197,252 +356,128 @@ class NikonPtpClient(
         return buf.array()
     }
 
-    private fun openSessionInternal() {
-        // 1. 尝试获取设备信息 (GetDeviceInfo 0x1001)，模拟尼康官方 WTU 先行握手
-        try {
-            val devInfoTxId = nativeCore.nextTransactionId().toInt()
-            val devInfoPayload = buildCommandPayload(OC_GET_DEVICE_INFO.toShort(), devInfoTxId)
-            sendPacket(cmdOut!!, PKT_CMD_REQ, devInfoPayload)
-            var p = readPacket(cmdIn!!)
-            while (p.type == PKT_DATA || p.type == PKT_DATA_END) {
-                p = readPacket(cmdIn!!)
-            }
-            Log.d(TAG, "GetDeviceInfo 协商握手完成")
-        } catch (e: Exception) {
-            Log.w(TAG, "GetDeviceInfo 协商略过: ${e.message}")
-        }
-
-        // 2. 发送标准 PTP OpenSession (0x1002)
-        val txId = nativeCore.nextTransactionId().toInt()
-        val payload = buildCommandPayload(OC_OPEN_SESSION.toShort(), txId, sessionId)
-        sendPacket(cmdOut!!, PKT_CMD_REQ, payload)
-        readPacket(cmdIn!!)
-
-        // 3. 针对处于「连接向导」状态的相机，发送尼康私有配对指令，触发相机屏幕确认并穿透向导
-        try {
-            // GetPairingCode (0x952B) 唤醒相机配对状态
-            val pairCodeTxId = nativeCore.nextTransactionId().toInt()
-            val pairCodePayload = buildCommandPayload(0x952B.toShort(), pairCodeTxId)
-            sendPacket(cmdOut!!, PKT_CMD_REQ, pairCodePayload)
-            var pairPkt = readPacket(cmdIn!!)
-            while (pairPkt.type == PKT_DATA || pairPkt.type == PKT_DATA_END) {
-                pairPkt = readPacket(cmdIn!!)
-            }
-            Log.i(TAG, "已成功发送尼康 GetPairingCode (0x952B)")
-        } catch (e: Exception) {
-            Log.d(TAG, "非配对向导状态或无需索取配对码: ${e.message}")
-        }
-
-        try {
-            // ConfirmPairing (0x935A, token 0xD061) 提交配对确认
-            val confirmTxId = nativeCore.nextTransactionId().toInt()
-            val confirmPayload = buildCommandPayload(0x935A.toShort(), confirmTxId, 0xD061)
-            sendPacket(cmdOut!!, PKT_CMD_REQ, confirmPayload)
-            readPacket(cmdIn!!)
-            Log.i(TAG, "已向相机发送尼康配对确认 (0x935A, 0xD061)，相机配对完成！")
-        } catch (e: Exception) {
-            Log.d(TAG, "非配对向导状态或已完成配对: ${e.message}")
-        }
-    }
-
+    /**
+     * 远程按快门 (对齐原版 InitiateCapture 0x100E)
+     */
     suspend fun triggerShutter(): Boolean = withContext(Dispatchers.IO) {
         if (!isConnected) return@withContext false
         cmdMutex.withLock {
             try {
-                val txId = nativeCore.nextTransactionId().toInt()
-                val payload = buildCommandPayload(OC_INITIATE_CAPTURE.toShort(), txId, 0, 0)
-                sendPacket(cmdOut!!, PKT_CMD_REQ, payload)
-                readPacket(cmdIn!!)
-                true
+                val resp = executePtpCommand(OC_INITIATE_CAPTURE.toShort(), 0, 0)
+                resp.responseCode == RC_OK
             } catch (e: Exception) {
-                Log.e(TAG, "触发快门异常: ${e.message}", e)
+                Log.e(TAG, "远程快门异常: ${e.message}", e)
                 false
             }
         }
     }
 
     /**
-     * 获取相机所有存储分区的所有对象句柄（照片/视频）
+     * 获取存储介质中照片/视频句柄列表 (0x1007)
      */
     suspend fun getAllObjectHandles(storageId: Int = -1): List<Int> = withContext(Dispatchers.IO) {
         if (!isConnected) return@withContext emptyList()
         cmdMutex.withLock {
             try {
-                val txId = nativeCore.nextTransactionId().toInt()
-                val payload = buildCommandPayload(OC_GET_OBJECT_HANDLES.toShort(), txId, storageId, 0, 0)
-                sendPacket(cmdOut!!, PKT_CMD_REQ, payload)
-
-                val dataPacket = readPacket(cmdIn!!)
+                val resp = executePtpCommand(OC_GET_OBJECT_HANDLES.toShort(), storageId, 0, 0)
                 val handles = mutableListOf<Int>()
-                if (dataPacket.type == PKT_DATA || dataPacket.type == PKT_DATA_END) {
-                    val buf = ByteBuffer.wrap(dataPacket.payload).order(ByteOrder.LITTLE_ENDIAN)
-                    if (buf.remaining() >= 4) {
-                        buf.getInt() // 略过事务编号
-                    }
-                    if (buf.remaining() >= 4) {
-                        val count = buf.getInt()
-                        for (i in 0 until count) {
-                            if (buf.remaining() >= 4) {
-                                handles.add(buf.getInt())
-                            }
+                if (resp.data.size >= 4) {
+                    val buf = ByteBuffer.wrap(resp.data).order(ByteOrder.LITTLE_ENDIAN)
+                    val count = buf.getInt()
+                    for (i in 0 until count) {
+                        if (buf.remaining() >= 4) {
+                            handles.add(buf.getInt())
                         }
                     }
                 }
-                readPacket(cmdIn!!) // 读取命令应答
                 handles
             } catch (e: Exception) {
-                Log.e(TAG, "获取对象列表失败: ${e.message}", e)
+                Log.e(TAG, "获取 ObjectHandles 异常: ${e.message}", e)
                 emptyList()
             }
         }
     }
 
     /**
-     * 读取指定对象的元数据（格式、文件名、压缩尺寸、拍摄时间等）
+     * 获取对象元信息 (0x1008)
      */
     suspend fun getObjectInfo(handle: Int): PtpObjectInfo? = withContext(Dispatchers.IO) {
         if (!isConnected) return@withContext null
         cmdMutex.withLock {
             try {
-                val txId = nativeCore.nextTransactionId().toInt()
-                val payload = buildCommandPayload(OC_GET_OBJECT_INFO.toShort(), txId, handle)
-                sendPacket(cmdOut!!, PKT_CMD_REQ, payload)
+                val resp = executePtpCommand(OC_GET_OBJECT_INFO.toShort(), handle)
+                if (resp.data.isEmpty()) return@withContext null
 
-                val dataPacket = readPacket(cmdIn!!)
-                var info: PtpObjectInfo? = null
-                if (dataPacket.type == PKT_DATA || dataPacket.type == PKT_DATA_END) {
-                    val buf = ByteBuffer.wrap(dataPacket.payload).order(ByteOrder.LITTLE_ENDIAN)
-                    if (buf.remaining() >= 4) {
-                        buf.getInt() // 跳过 4 字节事务 ID
-                    }
-                    if (buf.remaining() >= 52) {
-                        val storageId = buf.getInt()
-                        val formatCode = buf.getShort().toInt() and 0xFFFF
-                        val protection = buf.getShort().toInt() and 0xFFFF
-                        val compressedSize = buf.getInt().toLong() and 0xFFFFFFFFL
-                        val thumbFormat = buf.getShort().toInt() and 0xFFFF
-                        val thumbCompressedSize = buf.getInt().toLong() and 0xFFFFFFFFL
-                        val thumbPixWidth = buf.getInt()
-                        val thumbPixHeight = buf.getInt()
-                        val imagePixWidth = buf.getInt()
-                        val imagePixHeight = buf.getInt()
-                        val imageBitDepth = buf.getInt()
-                        val parentObject = buf.getInt()
-                        val associationType = buf.getShort().toInt() and 0xFFFF
-                        val associationDesc = buf.getInt()
-                        val sequenceNumber = buf.getInt()
+                val buf = ByteBuffer.wrap(resp.data).order(ByteOrder.LITTLE_ENDIAN)
+                val storageId = buf.getInt()
+                val formatCode = buf.getShort().toInt() and 0xFFFF
+                val protectionStatus = buf.getShort().toInt() and 0xFFFF
+                val compressedSize = buf.getInt().toLong() and 0xFFFFFFFFL
+                val thumbFormat = buf.getShort().toInt() and 0xFFFF
+                val thumbCompressedSize = buf.getInt().toLong() and 0xFFFFFFFFL
+                val thumbPixWidth = buf.getInt()
+                val thumbPixHeight = buf.getInt()
+                val imagePixWidth = buf.getInt()
+                val imagePixHeight = buf.getInt()
+                val imageBitDepth = buf.getInt()
+                val parentObject = buf.getInt()
+                val associationType = buf.getShort().toInt() and 0xFFFF
+                val associationDesc = buf.getInt()
+                val sequenceNumber = buf.getInt()
 
-                        val filename = readPtpString(buf)
-                        val dateCreated = readPtpString(buf)
-                        val dateModified = readPtpString(buf)
+                val filename = readPtpString(buf)
+                val dateCreated = readPtpString(buf)
+                val dateModified = readPtpString(buf)
 
-                        info = PtpObjectInfo(
-                            handle = handle,
-                            storageId = storageId,
-                            formatCode = formatCode,
-                            compressedSize = compressedSize,
-                            thumbFormat = thumbFormat,
-                            thumbCompressedSize = thumbCompressedSize,
-                            thumbPixWidth = thumbPixWidth,
-                            thumbPixHeight = thumbPixHeight,
-                            imagePixWidth = imagePixWidth,
-                            imagePixHeight = imagePixHeight,
-                            filename = filename.ifEmpty { "DSC_${handle}.JPG" },
-                            dateCreated = dateCreated,
-                            dateModified = dateModified
-                        )
-                    }
-                }
-                readPacket(cmdIn!!) // 读取命令应答
-                info
+                PtpObjectInfo(
+                    handle = handle,
+                    storageId = storageId,
+                    formatCode = formatCode,
+                    compressedSize = compressedSize,
+                    thumbFormat = thumbFormat,
+                    thumbCompressedSize = thumbCompressedSize,
+                    thumbPixWidth = thumbPixWidth,
+                    thumbPixHeight = thumbPixHeight,
+                    imagePixWidth = imagePixWidth,
+                    imagePixHeight = imagePixHeight,
+                    filename = filename,
+                    dateCreated = dateCreated,
+                    dateModified = dateModified
+                )
             } catch (e: Exception) {
-                Log.e(TAG, "获取对象信息 handle=$handle 失败: ${e.message}", e)
+                Log.e(TAG, "获取 ObjectInfo handle=$handle 异常: ${e.message}", e)
                 null
             }
         }
     }
 
     /**
-     * 获取指定对象的 JPEG 快速缩略图（用于相册画廊极速预览）
+     * 获取缩略图 (0x100A)
      */
     suspend fun getThumb(handle: Int): ByteArray? = withContext(Dispatchers.IO) {
         if (!isConnected) return@withContext null
         cmdMutex.withLock {
             try {
-                val txId = nativeCore.nextTransactionId().toInt()
-                val payload = buildCommandPayload(OC_GET_THUMB.toShort(), txId, handle)
-                sendPacket(cmdOut!!, PKT_CMD_REQ, payload)
-
-                val chunks = mutableListOf<ByteArray>()
-                var totalBytes = 0
-                while (true) {
-                    val pkt = readPacket(cmdIn!!)
-                    if (pkt.type == PKT_DATA || pkt.type == PKT_DATA_END) {
-                        val chunkPayload = if (pkt.payload.size > 4) {
-                            pkt.payload.copyOfRange(4, pkt.payload.size)
-                        } else ByteArray(0)
-                        chunks.add(chunkPayload)
-                        totalBytes += chunkPayload.size
-                        if (pkt.type == PKT_DATA_END) break
-                    } else if (pkt.type == PKT_CMD_RESP) {
-                        break
-                    }
-                }
-                readPacket(cmdIn!!)
-
-                if (totalBytes == 0) return@withLock null
-                val fullData = ByteArray(totalBytes)
-                var offset = 0
-                for (chunk in chunks) {
-                    System.arraycopy(chunk, 0, fullData, offset, chunk.size)
-                    offset += chunk.size
-                }
-                fullData
+                val resp = executePtpCommand(OC_GET_THUMB.toShort(), handle)
+                if (resp.data.isNotEmpty()) resp.data else null
             } catch (e: Exception) {
-                Log.e(TAG, "获取缩略图 handle=$handle 失败: ${e.message}", e)
+                Log.e(TAG, "获取缩略图 handle=$handle 异常: ${e.message}", e)
                 null
             }
         }
     }
 
     /**
-     * 下载完整照片或文件字节流
+     * 下载完整原图/RAW/视频 (0x1009)
      */
     suspend fun downloadObject(handle: Int): ByteArray? = withContext(Dispatchers.IO) {
         if (!isConnected) return@withContext null
         cmdMutex.withLock {
             try {
-                val txId = nativeCore.nextTransactionId().toInt()
-                val payload = buildCommandPayload(OC_GET_OBJECT.toShort(), txId, handle)
-                sendPacket(cmdOut!!, PKT_CMD_REQ, payload)
-
-                val chunks = mutableListOf<ByteArray>()
-                var totalBytes = 0
-                while (true) {
-                    val pkt = readPacket(cmdIn!!)
-                    if (pkt.type == PKT_DATA || pkt.type == PKT_DATA_END) {
-                        val chunkPayload = if (pkt.payload.size > 4) {
-                            pkt.payload.copyOfRange(4, pkt.payload.size)
-                        } else ByteArray(0)
-                        chunks.add(chunkPayload)
-                        totalBytes += chunkPayload.size
-                        if (pkt.type == PKT_DATA_END) break
-                    } else if (pkt.type == PKT_CMD_RESP) {
-                        break
-                    }
-                }
-                readPacket(cmdIn!!)
-
-                val fullData = ByteArray(totalBytes)
-                var offset = 0
-                for (chunk in chunks) {
-                    System.arraycopy(chunk, 0, fullData, offset, chunk.size)
-                    offset += chunk.size
-                }
-                Log.d(TAG, "成功下载对象 handle=$handle ($totalBytes 字节)")
-                fullData
+                val resp = executePtpCommand(OC_GET_OBJECT.toShort(), handle)
+                if (resp.data.isNotEmpty()) resp.data else null
             } catch (e: Exception) {
-                Log.e(TAG, "下载对象 handle=$handle 异常: ${e.message}", e)
+                Log.e(TAG, "下载原图 handle=$handle 异常: ${e.message}", e)
                 null
             }
         }
@@ -462,7 +497,7 @@ class NikonPtpClient(
 
                         Log.d(TAG, "收到相机事件: 0x${eventCode.toString(16)}, Param1=$param1")
                         if (eventCode == EV_OBJECT_ADDED) {
-                            Log.i(TAG, "相机拍摄生成新照片/对象！Handle = $param1")
+                            Log.i(TAG, "检测到新照片写入 Handle = $param1")
                             onPhotoCaptured?.invoke(param1)
                         }
                     }
@@ -507,7 +542,7 @@ class NikonPtpClient(
         val type = headerBuf.getInt()
 
         if (length < 8) {
-            throw IllegalStateException("非法的 PTP 包长度: $length")
+            throw IllegalStateException("非法 PTP 包长度: $length")
         }
         val payloadSize = length - 8
         val payload = ByteArray(payloadSize)
@@ -521,7 +556,7 @@ class NikonPtpClient(
         var readTotal = 0
         while (readTotal < buffer.size) {
             val count = input.read(buffer, readTotal, buffer.size - readTotal)
-            if (count < 0) throw IllegalStateException("读取 Socket 流提前到达 EOF")
+            if (count < 0) throw IllegalStateException("读取 Socket 提前遭遇 EOF")
             readTotal += count
         }
     }
@@ -539,10 +574,17 @@ class NikonPtpClient(
     }
 
     data class PtpPacket(val type: Int, val payload: ByteArray)
+
+    data class PtpResponse(
+        val responseCode: Int,
+        val transactionId: Int,
+        val parameters: List<Int>,
+        val data: ByteArray
+    )
 }
 
 /**
- * PTP 对象信息描述数据集
+ * PTP 对象信息数据集
  */
 data class PtpObjectInfo(
     val handle: Int,

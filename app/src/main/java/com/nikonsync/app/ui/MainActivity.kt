@@ -19,6 +19,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.button.MaterialButton
 import com.nikonsync.app.R
+import com.nikonsync.app.ptp.NikonCameraProfile
 import com.nikonsync.app.service.BluetoothGpsRelayService
 import com.nikonsync.app.service.PhotoSyncService
 import com.nikonsync.app.update.AppUpdateManager
@@ -87,6 +88,12 @@ class MainActivity : AppCompatActivity() {
             syncService?.onNewPhotoSaved = { uriString ->
                 runOnUiThread {
                     if (!isDestroyed) showPhoto(uriString)
+                }
+            }
+
+            syncService?.onPairingSuccess = { cameraName, code ->
+                runOnUiThread {
+                    if (!isDestroyed) showPairingSuccessDialog(cameraName, code)
                 }
             }
 
@@ -378,24 +385,69 @@ class MainActivity : AppCompatActivity() {
             appendLog("正在发送远程按快门请求...")
             syncService?.triggerShutter()
         }
+
+        // 长按连接按钮：触发重新配对相机向导
+        btnConnect.setOnLongClickListener {
+            showRePairDialog()
+            true
+        }
     }
 
     private fun updateConnectionUI(connecting: Boolean = syncService?.isConnecting == true) {
         val connected = syncService?.isCameraConnected == true
         val isWifi = NetworkUtils.isWifiConnected(this)
+        val hasPaired = NikonCameraProfile.hasPairedProfile(this)
         val (label, hint, color) = when {
             connecting -> Triple(getString(R.string.connecting), getString(R.string.connecting_hint), R.color.sync_gold_ink)
             connected -> Triple(getString(R.string.connected), getString(R.string.connected_hint), R.color.sync_green)
             !isWifi -> Triple(getString(R.string.idle), "⚠️ 手机当前未连接 Wi-Fi（处于移动蜂窝网络）。请先打开 Wi-Fi 连入与相机相同的网络！", R.color.sync_muted)
+            !hasPaired -> Triple("未配对", "未保存相机配对凭据。请让相机停留在【连接向导】界面并点击下方按钮配对", R.color.sync_muted)
             else -> Triple(getString(R.string.idle), getString(R.string.wifi_hint), R.color.sync_muted)
         }
         tvStatusBadge.text = label
         tvStatusBadge.setTextColor(ContextCompat.getColor(this, color))
         tvStatusText.text = hint
-        btnConnect.setText(if (connected) R.string.disconnect else R.string.connect)
+
+        val buttonText = when {
+            connected -> getString(R.string.disconnect)
+            connecting -> "正在握手中..."
+            !hasPaired -> "配对并连接相机"
+            else -> getString(R.string.connect)
+        }
+        btnConnect.text = buttonText
         btnConnect.isEnabled = syncService != null && !connecting
         btnShutter.isEnabled = connected && !connecting
         etCameraIp.isEnabled = !connected && !connecting
+    }
+
+    private fun showPairingSuccessDialog(cameraName: String, code: String) {
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("🎉 相机配对成功")
+            .setMessage("已成功为【$cameraName】完成无线配对认证！\n(认证识别挑战: $code)\n\n⚠️ 极其重要的最后一步：\n请查看相机屏幕，当前已显示「配对完成」。\n请务必在相机机身上按下【OK】或【J】键保存网络配置文件！\n\n按完机身按键后，点击下方按钮即可立即连接相机开始传输照片。")
+            .setPositiveButton("立即连接相机") { _, _ ->
+                val rawIp = etCameraIp.text.toString().trim().ifEmpty { NetworkUtils.getCameraIp(this) }
+                val ip = NetworkUtils.normalizeIp(rawIp)
+                syncService?.startSync(ip, manual = true)
+                updateConnectionUI(connecting = true)
+            }
+            .setNegativeButton("稍后连接", null)
+            .setCancelable(false)
+            .show()
+    }
+
+    private fun showRePairDialog() {
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("重新配对相机向导")
+            .setMessage("确定要清除当前保存的配对记录，并生成全新的网络密钥重新配对吗？\n\n使用场景：\n当您在相机上重新创建了网络配置文件，或者相机屏幕重新处于【连接向导】时。")
+            .setPositiveButton("开始全新配对") { _, _ ->
+                val rawIp = etCameraIp.text.toString().trim().ifEmpty { NetworkUtils.getCameraIp(this) }
+                val ip = NetworkUtils.normalizeIp(rawIp)
+                appendLog("正在清除旧配对并启动全新配对向导...")
+                syncService?.startPairing(ip)
+                updateConnectionUI(connecting = true)
+            }
+            .setNegativeButton("取消", null)
+            .show()
     }
 
     private fun showPhoto(uriString: String) {
