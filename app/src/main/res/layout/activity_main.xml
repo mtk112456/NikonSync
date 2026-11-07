@@ -386,27 +386,89 @@
                 android:contentDescription="@string/latest_photo" />
         </LinearLayout>
 
-        <!-- 日志控制台 -->
-        <TextView
+        <!-- 日志折叠面板卡片 -->
+        <LinearLayout
+            android:id="@+id/layoutLogToggle"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:orientation="vertical"
             android:layout_marginTop="16dp"
-            android:text="@string/logs"
-            android:textSize="16sp"
-            android:textColor="@color/sync_ink"
-            android:textStyle="bold" />
+            android:background="@drawable/sync_panel"
+            android:padding="14dp">
 
-        <TextView
-            android:id="@+id/tvLogConsole"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:background="@drawable/sync_console"
-            android:padding="14dp"
-            android:textIsSelectable="true"
-            android:fontFamily="monospace"
-            android:text="@string/log_ready"
-            android:textSize="12sp"
-            android:textColor="@color/sync_log_text" />
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="运行与调试日志"
+                    android:textSize="15sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/sync_ink" />
+
+                <TextView
+                    android:id="@+id/tvLogBadge"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="正常"
+                    android:textSize="11sp"
+                    android:paddingHorizontal="6dp"
+                    android:paddingVertical="2dp"
+                    android:background="@drawable/sync_field"
+                    android:textColor="@color/sync_muted" />
+
+                <TextView
+                    android:id="@+id/tvLogToggleIcon"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:text="[点击展开 ▾]"
+                    android:textSize="13sp"
+                    android:textColor="@color/sync_gold_ink" />
+            </LinearLayout>
+
+            <!-- 可折叠的日志内容，默认完全隐藏！ -->
+            <LinearLayout
+                android:id="@+id/layoutLogContainer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:layout_marginTop="10dp"
+                android:visibility="gone">
+
+                <TextView
+                    android:id="@+id/tvLogConsole"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/sync_console"
+                    android:padding="12dp"
+                    android:textIsSelectable="true"
+                    android:fontFamily="monospace"
+                    android:text="@string/log_ready"
+                    android:textSize="12sp"
+                    android:textColor="@color/sync_log_text" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:gravity="end">
+
+                    <TextView
+                        android:id="@+id/btnClearLog"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:padding="6dp"
+                        android:text="清空控制台"
+                        android:textSize="12sp"
+                        android:textColor="@color/sync_muted" />
+                </LinearLayout>
+            </LinearLayout>
+        </LinearLayout>
     </LinearLayout>
 </ScrollView>

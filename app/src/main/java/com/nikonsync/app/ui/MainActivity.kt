@@ -44,6 +44,11 @@ class MainActivity : AppCompatActivity() {
     private lateinit var ivLastPhoto: ImageView
     private lateinit var photoSection: View
     private lateinit var tvLogConsole: TextView
+    private lateinit var layoutLogToggle: View
+    private lateinit var layoutLogContainer: View
+    private lateinit var tvLogToggleIcon: TextView
+    private lateinit var tvLogBadge: TextView
+    private lateinit var btnClearLog: TextView
 
     private var syncService: PhotoSyncService? = null
     private var gpsService: BluetoothGpsRelayService? = null
@@ -57,17 +62,19 @@ class MainActivity : AppCompatActivity() {
                 runOnUiThread {
                     if (isDestroyed) return@runOnUiThread
                     tvStatusText.text = msg
-                    // 仅核心业务事件才打入底部控制台，防止重试过程反复刷屏
-                    if (msg.contains("相机连接成功") ||
-                        msg.contains("已与相机断开") ||
-                        msg.contains("已手动断开") ||
-                        msg.contains("已存入系统相册") ||
-                        msg.contains("远程快门") ||
-                        msg.contains("格式策略") ||
-                        msg.contains("连上相机 Wi-Fi") ||
-                        msg.contains("未连接到相机")
-                    ) {
+                    // 仅关键业务生命周期事件与错误才打入控制台
+                    if (msg.contains("相机连接成功")) {
                         appendLog(msg)
+                        tvLogBadge.text = "已连接"
+                        tvLogBadge.setTextColor(ContextCompat.getColor(this@MainActivity, R.color.sync_green))
+                    } else if (msg.contains("已与相机断开") || msg.contains("已手动断开")) {
+                        appendLog(msg)
+                        tvLogBadge.text = "未连接"
+                        tvLogBadge.setTextColor(ContextCompat.getColor(this@MainActivity, R.color.sync_muted))
+                    } else if (msg.contains("已存入系统相册") || msg.contains("远程快门") || msg.contains("格式策略")) {
+                        appendLog(msg)
+                    } else if (msg.contains("失败") || msg.contains("异常") || msg.contains("中断")) {
+                        appendLog(msg, isError = true)
                     }
                     updateConnectionUI()
                 }
@@ -85,13 +92,12 @@ class MainActivity : AppCompatActivity() {
             }
             updateConnectionUI()
 
-            // 服务就绪后，若已开启自动连接且当前连上了 Wi-Fi，立即自动发起连接
+            // 若用户主动开启了自动连接且当前连上了 Wi-Fi，静默发起连接（不污染日志）
             if (::switchAutoConnect.isInitialized && switchAutoConnect.isChecked) {
                 if (syncService?.isCameraConnected == false && syncService?.isConnecting == false && syncService?.isManualDisconnected == false) {
                     if (NetworkUtils.isWifiConnected(this@MainActivity)) {
                         val ip = etCameraIp.text.toString().trim().ifEmpty { NetworkUtils.getCameraIp(this@MainActivity) }
                         etCameraIp.setText(ip)
-                        appendLog("检测到 Wi-Fi 已就绪，启动自动连接相机 ($ip)...")
                         syncService?.startSync(ip, manual = false)
                     }
                 }
@@ -176,6 +182,23 @@ class MainActivity : AppCompatActivity() {
         ivLastPhoto = findViewById(R.id.ivLastPhoto)
         photoSection = findViewById(R.id.photoSection)
         tvLogConsole = findViewById(R.id.tvLogConsole)
+        layoutLogToggle = findViewById(R.id.layoutLogToggle)
+        layoutLogContainer = findViewById(R.id.layoutLogContainer)
+        tvLogToggleIcon = findViewById(R.id.tvLogToggleIcon)
+        tvLogBadge = findViewById(R.id.tvLogBadge)
+        btnClearLog = findViewById(R.id.btnClearLog)
+
+        layoutLogToggle.setOnClickListener {
+            val isShown = layoutLogContainer.visibility == View.VISIBLE
+            layoutLogContainer.visibility = if (isShown) View.GONE else View.VISIBLE
+            tvLogToggleIcon.text = if (isShown) "[点击展开 ▾]" else "[点击收起 ▴]"
+        }
+
+        btnClearLog.setOnClickListener {
+            tvLogConsole.text = getString(R.string.log_ready)
+            tvLogBadge.text = "正常"
+            tvLogBadge.setTextColor(ContextCompat.getColor(this, R.color.sync_muted))
+        }
 
         val prefs = getPreferences(Context.MODE_PRIVATE)
         etCameraIp.setText(prefs.getString("camera_ip", getString(R.string.default_ip)))
@@ -187,12 +210,14 @@ class MainActivity : AppCompatActivity() {
             else -> rbFormatJpg.isChecked = true
         }
 
-        val autoConnectSaved = prefs.getBoolean("auto_connect", true)
+        val autoConnectSaved = prefs.getBoolean("auto_connect", false)
         switchAutoConnect.isChecked = autoConnectSaved
         switchAutoConnect.setOnCheckedChangeListener { _, isChecked ->
             prefs.edit().putBoolean("auto_connect", isChecked).apply()
             syncService?.isAutoReconnectEnabled = isChecked
-            appendLog(if (isChecked) "已开启：连上相机 Wi-Fi 时自动连接" else "已关闭自动连接")
+            if (isChecked) {
+                appendLog("已开启连上 Wi-Fi 自动连接相机")
+            }
         }
 
         rgFormatMode.setOnCheckedChangeListener { _, checkedId ->
@@ -318,11 +343,15 @@ class MainActivity : AppCompatActivity() {
 
     private var lastLoggedMessage: String? = null
 
-    private fun appendLog(msg: String) {
+    private fun appendLog(msg: String, isError: Boolean = false) {
         if (msg == lastLoggedMessage) return
         lastLoggedMessage = msg
         val line = "[${android.text.format.DateFormat.format("HH:mm:ss", java.util.Date())}] $msg\n"
         tvLogConsole.append(line)
+        if (isError) {
+            tvLogBadge.text = "出现异常"
+            tvLogBadge.setTextColor(ContextCompat.getColor(this, android.R.color.holo_red_light))
+        }
     }
 
     private fun checkPermissions() {
@@ -374,7 +403,6 @@ class MainActivity : AppCompatActivity() {
                 if (NetworkUtils.isWifiConnected(this)) {
                     val ip = etCameraIp.text.toString().trim().ifEmpty { NetworkUtils.getCameraIp(this) }
                     etCameraIp.setText(ip)
-                    appendLog("检测到已在相机 Wi-Fi 环境，正在自动连接 ($ip)...")
                     service.startSync(ip, manual = false)
                 }
             }

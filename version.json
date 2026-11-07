@@ -1,10 +1,10 @@
 {
-  "versionCode": 6,
-  "versionName": "2.1.3",
+  "versionCode": 7,
+  "versionName": "2.1.4",
   "releaseDate": "2026-11-07",
-  "title": "NikonSync v2.1.3 极速多节点 OTA 升级与下载加速版",
-  "changelog": "1. 彻底解决更新下载慢的问题 (接入 ghfast / jsDelivr / 多节点自动容灾与秒级下载)\n2. 实时显示下载速度与进度 (如 1.5 MB/s)\n3. 扩大下载缓冲至 64KB 高性能吞吐模式\n4. 尼康 Z30 专属设定菜单指南与不断网模式",
-  "downloadUrl": "https://github.com/mtk112456/NikonSync/releases/download/v2.1.3/NikonSync-v2.1.3.apk",
-  "mirrorDownloadUrl": "https://ghfast.top/https://github.com/mtk112456/NikonSync/releases/download/v2.1.3/NikonSync-v2.1.3.apk",
-  "cdnDownloadUrl": "https://cdn.jsdelivr.net/gh/mtk112456/NikonSync@main/apk/NikonSync-v2.1.3.apk"
+  "title": "NikonSync v2.1.4 纯净折叠日志与按需连接版",
+  "changelog": "1. 运行日志默认完全折叠隐藏，界面极致纯净 (点击随时展开查看)\n2. 异常智能感应：出现断开或错误时状态栏红点高亮提示\n3. 彻底根除自动连接日志刷屏，默认按需手动连接\n4. 多节点极速 OTA 下载与满速传输",
+  "downloadUrl": "https://github.com/mtk112456/NikonSync/releases/download/v2.1.4/NikonSync-v2.1.4.apk",
+  "mirrorDownloadUrl": "https://ghfast.top/https://github.com/mtk112456/NikonSync/releases/download/v2.1.4/NikonSync-v2.1.4.apk",
+  "cdnDownloadUrl": "https://cdn.jsdelivr.net/gh/mtk112456/NikonSync@main/apk/NikonSync-v2.1.4.apk"
 }
