@@ -1,0 +1,246 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true"
+    android:background="@color/sync_canvas">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <!-- 顶部导航栏 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:gravity="center_vertical"
+            android:paddingHorizontal="16dp"
+            android:background="@color/sync_surface"
+            android:elevation="4dp">
+
+            <ImageButton
+                android:id="@+id/btnBack"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:src="@android:drawable/ic_menu_revert"
+                app:tint="@color/sync_ink"
+                android:contentDescription="返回" />
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="12dp"
+                android:text="尼康 Picture Control 调色配方"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:textColor="@color/sync_ink" />
+        </LinearLayout>
+
+        <!-- 实时滤镜预览区 -->
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="220dp"
+            android:background="@color/sync_surface">
+
+            <ImageView
+                android:id="@+id/ivPreview"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="centerCrop"
+                android:contentDescription="色彩效果实时预览" />
+
+            <!-- 样张切换器 -->
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="bottom|end"
+                android:layout_margin="10dp"
+                android:background="#99000000"
+                android:padding="4dp">
+
+                <Button
+                    android:id="@+id/btnSamplePortrait"
+                    style="@style/Widget.Material3.Button.TextButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="36dp"
+                    android:text="人像"
+                    android:textColor="#FFFFFF"
+                    android:textSize="12sp" />
+
+                <Button
+                    android:id="@+id/btnSampleLandscape"
+                    style="@style/Widget.Material3.Button.TextButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="36dp"
+                    android:text="风景"
+                    android:textColor="#FFFFFF"
+                    android:textSize="12sp" />
+
+                <Button
+                    android:id="@+id/btnSampleGray"
+                    style="@style/Widget.Material3.Button.TextButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="36dp"
+                    android:text="黑白"
+                    android:textColor="#FFFFFF"
+                    android:textSize="12sp" />
+            </LinearLayout>
+        </FrameLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <!-- 基础基底预设选择 -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="选择基底预设"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:textColor="@color/sync_ink" />
+
+            <Spinner
+                android:id="@+id/spBaseProfile"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:layout_marginTop="6dp"
+                android:background="@drawable/sync_field" />
+
+            <!-- 参数滑块控制面板 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:layout_marginTop="16dp"
+                android:background="@drawable/sync_panel"
+                android:padding="16dp">
+
+                <!-- 锐度 -->
+                <TextView
+                    android:id="@+id/tvSharpness"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="锐度: 0"
+                    android:textColor="@color/sync_ink"
+                    android:textSize="14sp" />
+                <SeekBar
+                    android:id="@+id/sbSharpness"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:max="12"
+                    android:progress="3" />
+
+                <!-- 清晰度 -->
+                <TextView
+                    android:id="@+id/tvClarity"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="清晰度 (Clarity): 0"
+                    android:textColor="@color/sync_ink"
+                    android:textSize="14sp" />
+                <SeekBar
+                    android:id="@+id/sbClarity"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:max="10"
+                    android:progress="5" />
+
+                <!-- 对比度 -->
+                <TextView
+                    android:id="@+id/tvContrast"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="对比度: 0"
+                    android:textColor="@color/sync_ink"
+                    android:textSize="14sp" />
+                <SeekBar
+                    android:id="@+id/sbContrast"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:max="6"
+                    android:progress="3" />
+
+                <!-- 饱和度 -->
+                <TextView
+                    android:id="@+id/tvSaturation"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="饱和度: 0"
+                    android:textColor="@color/sync_ink"
+                    android:textSize="14sp" />
+                <SeekBar
+                    android:id="@+id/sbSaturation"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:max="6"
+                    android:progress="3" />
+
+                <!-- 亮度 -->
+                <TextView
+                    android:id="@+id/tvBrightness"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="亮度: 0"
+                    android:textColor="@color/sync_ink"
+                    android:textSize="14sp" />
+                <SeekBar
+                    android:id="@+id/sbBrightness"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:max="4"
+                    android:progress="2" />
+            </LinearLayout>
+
+            <!-- 导出设置 -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:text="预设名称 (最多7位大写英文字符)"
+                android:textSize="14sp"
+                android:textColor="@color/sync_muted" />
+
+            <EditText
+                android:id="@+id/etProfileName"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:layout_marginTop="6dp"
+                android:background="@drawable/sync_field"
+                android:paddingHorizontal="12dp"
+                android:text="MYPRE01"
+                android:fontFamily="monospace"
+                android:textAllCaps="true"
+                android:maxLength="7"
+                android:textColor="@color/sync_ink" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnExportNp3"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:layout_marginTop="16dp"
+                android:text="导出 .NP3 曲线预设文件"
+                android:textColor="@color/sync_ink"
+                app:cornerRadius="14dp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:text="使用提示：导出的 .NP3 文件保存在手机 Download/NikonSync/CustomPC 目录中。将其复制到相机 SD 卡的 NIKON/CUSTOMPC 文件夹下，即可在相机的【管理优化校准 -> 载入/保存】中导入使用！"
+                android:textColor="@color/sync_muted"
+                android:textSize="12sp"
+                android:lineSpacingExtra="3dp" />
+        </LinearLayout>
+    </LinearLayout>
+</ScrollView>

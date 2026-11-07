@@ -1,0 +1,214 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true"
+    android:background="@color/sync_canvas">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingBottom="36dp">
+
+        <!-- 顶部导航栏 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:gravity="center_vertical"
+            android:paddingHorizontal="16dp"
+            android:background="@color/sync_surface"
+            android:elevation="4dp">
+
+            <ImageButton
+                android:id="@+id/btnBack"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:src="@android:drawable/ic_menu_revert"
+                app:tint="@color/sync_ink"
+                android:contentDescription="返回" />
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="12dp"
+                android:text="尼康微单操作与配对全景指南"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:textColor="@color/sync_ink" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingHorizontal="16dp"
+            android:paddingTop="16dp">
+
+            <!-- 卡片 1: Wi-Fi 连接步骤 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="@drawable/sync_panel"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="一、 相机端建立 Wi-Fi 连接"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/sync_gold_ink" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:lineSpacingExtra="4dp"
+                    android:text="1. 打开相机电源，按下 MENU 键进入菜单。\n2. 选择【网络菜单】(天线图标) -> 【连接至智能设备】。\n3. 选择【Wi-Fi 连接】 -> 【建立 Wi-Fi 连接】。\n4. 此时相机屏幕会显示热点名称 (SSID: 如 Z30_XXXXXXXX) 与密码。\n5. 在手机 WLAN 列表中搜索并连接该热点。"
+                    android:textColor="@color/sync_ink"
+                    android:textSize="13sp" />
+            </LinearLayout>
+
+            <!-- 卡片 2: 手机防断网核心必看 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:layout_marginTop="12dp"
+                android:background="@drawable/sync_panel"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="二、 手机端防断连设置 (关键必看！)"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:textColor="#E65100" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:lineSpacingExtra="4dp"
+                    android:text="• 现象：尼康相机的 Wi-Fi 热点仅供局域网传图，不提供外网。部分手机连上后会提示“此网络无法上网，是否断开/切换数据网络”。\n• 解决：在系统弹窗中务必勾选【保持连接】并选择【不再提示】！\n• 建议：在户外传图时，可临时关闭手机的【蜂窝移动数据】或系统【WLAN 助理 / 网络加速】，避免手机系统自动走 5G 导致相机局域网连接中断。"
+                    android:textColor="@color/sync_ink"
+                    android:textSize="13sp" />
+            </LinearLayout>
+
+            <!-- 卡片 3: 即拍即传与格式过滤 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:layout_marginTop="12dp"
+                android:background="@drawable/sync_panel"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="三、 即拍即传与格式筛选"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/sync_gold_ink" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:lineSpacingExtra="4dp"
+                    android:text="• 仅同步 JPG (推荐)：单张仅约 5~10MB，按下快门后 1~2 秒即可在手机相册秒出图，非常适合发朋友圈与现场直出预览。\n• 同步全部 (JPG+RAW)：适合专业后期，RAW (NEF) 体积约 30~50MB，会同时保存原片。\n• 照片保存位置：系统相册 -> Pictures/NikonSync 文件夹。"
+                    android:textColor="@color/sync_ink"
+                    android:textSize="13sp" />
+            </LinearLayout>
+
+            <!-- 卡片 4: 历史画廊与批量下载 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:layout_marginTop="12dp"
+                android:background="@drawable/sync_panel"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="四、 相机卡内历史画廊浏览"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/sync_gold_ink" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:lineSpacingExtra="4dp"
+                    android:text="• 点击主页【打开相机卡内画廊】。\n• App 会直接读取相机存储卡内已有的照片索引，并以九宫格缩略图高速展示。\n• 支持【全选】、【多选勾选】，点击【批量下载】即可一次性将选中照片全部存入手机。"
+                    android:textColor="@color/sync_ink"
+                    android:textSize="13sp" />
+            </LinearLayout>
+
+            <!-- 卡片 5: 蓝牙 GPS 定位注入 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:layout_marginTop="12dp"
+                android:background="@drawable/sync_panel"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="五、 蓝牙 GPS 定位注入 (旅行必备)"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/sync_gold_ink" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:lineSpacingExtra="4dp"
+                    android:text="• 背景：尼康 Z30 / Z50 / Zfc 机身没有内置 GPS 硬件。\n• 步骤：\n  1. 开启主页的【蓝牙 GPS 实时中继】。\n  2. 在相机菜单进入【网络菜单】->【连接至智能设备】->【配对(蓝牙)】->【开始配对】。\n  3. 手机会自动扫描并连接相机，在相机屏幕弹出提示时按【OK】确认。\n  4. 连接成功后，相机屏幕会出现卫星定位图标，拍摄的所有照片将自动附带精准的地理位置与海拔 EXIF 元数据！"
+                    android:textColor="@color/sync_ink"
+                    android:textSize="13sp" />
+            </LinearLayout>
+
+            <!-- 卡片 6: 常见故障排查 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:layout_marginTop="12dp"
+                android:background="@drawable/sync_panel"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="六、 常见故障排查与速查"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/sync_gold_ink" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:lineSpacingExtra="4dp"
+                    android:text="• 相机休眠掉线：相机待机时间默认为 30 秒或 1 分钟，长时间不操作相机会自动关闭测光并断开 Wi-Fi。轻按半快门唤醒相机即可自动重连。\n• 无法连接提示冲突：相机同一时间只允许一个连接，请确保相机未同时开启【连接至计算机】功能，且官方 SnapBridge 没有在后台抢占端口 15740。\n• 强行重置：如连接异常，可以在相机菜单执行【恢复默认网络设置】后重新开启热点。"
+                    android:textColor="@color/sync_ink"
+                    android:textSize="13sp" />
+            </LinearLayout>
+
+        </LinearLayout>
+    </LinearLayout>
+</ScrollView>

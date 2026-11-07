@@ -14,25 +14,37 @@ import android.view.View
 import android.widget.*
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.SwitchCompat
 import androidx.core.content.ContextCompat
+import com.google.android.material.button.MaterialButton
 import com.nikonsync.app.R
+import com.nikonsync.app.service.BluetoothGpsRelayService
 import com.nikonsync.app.service.PhotoSyncService
 
 class MainActivity : AppCompatActivity() {
 
+    private lateinit var btnOpenGuide: MaterialButton
     private lateinit var tvStatusBadge: TextView
     private lateinit var tvStatusText: TextView
     private lateinit var etCameraIp: EditText
+    private lateinit var rgFormatMode: RadioGroup
+    private lateinit var rbFormatJpg: RadioButton
+    private lateinit var rbFormatAll: RadioButton
+    private lateinit var rbFormatRaw: RadioButton
     private lateinit var btnConnect: Button
     private lateinit var btnShutter: Button
+    private lateinit var btnOpenGallery: MaterialButton
+    private lateinit var btnOpenPictureControl: MaterialButton
+    private lateinit var tvGpsStatus: TextView
+    private lateinit var switchGpsRelay: SwitchCompat
     private lateinit var ivLastPhoto: ImageView
     private lateinit var photoSection: View
     private lateinit var tvLogConsole: TextView
 
     private var syncService: PhotoSyncService? = null
-    private var isBound = false
+    private var gpsService: BluetoothGpsRelayService? = null
 
-    private val serviceConnection = object : ServiceConnection {
+    private val syncConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
             val binder = service as PhotoSyncService.LocalBinder
             syncService = binder.getService()
@@ -61,14 +73,42 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private val gpsConnection = object : ServiceConnection {
+        override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
+            val binder = service as BluetoothGpsRelayService.LocalBinder
+            gpsService = binder.getService()
+
+            gpsService?.onGpsStatusChanged = { msg, connected ->
+                runOnUiThread {
+                    if (isDestroyed) return@runOnUiThread
+                    tvGpsStatus.text = msg
+                    switchGpsRelay.isChecked = gpsService?.isGpsRunning == true
+                    if (connected) {
+                        tvGpsStatus.setTextColor(ContextCompat.getColor(this@MainActivity, R.color.sync_green))
+                    } else {
+                        tvGpsStatus.setTextColor(ContextCompat.getColor(this@MainActivity, R.color.sync_muted))
+                    }
+                }
+            }
+            switchGpsRelay.isChecked = gpsService?.isGpsRunning == true
+            tvGpsStatus.text = gpsService?.statusMessage ?: "未启动"
+        }
+
+        override fun onServiceDisconnected(name: ComponentName?) {
+            gpsService = null
+            switchGpsRelay.isChecked = false
+            tvGpsStatus.text = "GPS 服务已停止"
+        }
+    }
+
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
         val allGranted = permissions.entries.all { it.value }
         if (allGranted) {
-            appendLog("核心权限已就绪")
+            appendLog("核心权限 (网络/定位/蓝牙/相册) 已就绪")
         } else {
-            appendLog("部分权限未授予，可能影响后台保存照片或通知")
+            appendLog("部分权限未授予，可能影响蓝牙定位注入或后台保存照片")
         }
     }
 
@@ -79,19 +119,91 @@ class MainActivity : AppCompatActivity() {
         initViews()
         checkPermissions()
         bindSyncService()
+        bindGpsService()
     }
 
     private fun initViews() {
+        btnOpenGuide = findViewById(R.id.btnOpenGuide)
         tvStatusBadge = findViewById(R.id.tvStatusBadge)
         tvStatusText = findViewById(R.id.tvStatusText)
         etCameraIp = findViewById(R.id.etCameraIp)
+        rgFormatMode = findViewById(R.id.rgFormatMode)
+        rbFormatJpg = findViewById(R.id.rbFormatJpg)
+        rbFormatAll = findViewById(R.id.rbFormatAll)
+        rbFormatRaw = findViewById(R.id.rbFormatRaw)
         btnConnect = findViewById(R.id.btnConnect)
         btnShutter = findViewById(R.id.btnShutter)
+        btnOpenGallery = findViewById(R.id.btnOpenGallery)
+        btnOpenPictureControl = findViewById(R.id.btnOpenPictureControl)
+        tvGpsStatus = findViewById(R.id.tvGpsStatus)
+        switchGpsRelay = findViewById(R.id.switchGpsRelay)
         ivLastPhoto = findViewById(R.id.ivLastPhoto)
         photoSection = findViewById(R.id.photoSection)
         tvLogConsole = findViewById(R.id.tvLogConsole)
-        val preferences = getPreferences(Context.MODE_PRIVATE)
-        etCameraIp.setText(preferences.getString("camera_ip", getString(R.string.default_ip)))
+
+        val prefs = getPreferences(Context.MODE_PRIVATE)
+        etCameraIp.setText(prefs.getString("camera_ip", getString(R.string.default_ip)))
+
+        val savedFormat = prefs.getInt("format_mode", PhotoSyncService.FORMAT_JPG_ONLY)
+        when (savedFormat) {
+            PhotoSyncService.FORMAT_ALL -> rbFormatAll.isChecked = true
+            PhotoSyncService.FORMAT_RAW_ONLY -> rbFormatRaw.isChecked = true
+            else -> rbFormatJpg.isChecked = true
+        }
+
+        rgFormatMode.setOnCheckedChangeListener { _, checkedId ->
+            val mode = when (checkedId) {
+                R.id.rbFormatAll -> PhotoSyncService.FORMAT_ALL
+                R.id.rbFormatRaw -> PhotoSyncService.FORMAT_RAW_ONLY
+                else -> PhotoSyncService.FORMAT_JPG_ONLY
+            }
+            prefs.edit().putInt("format_mode", mode).apply()
+            syncService?.formatMode = mode
+            val modeName = when (mode) {
+                PhotoSyncService.FORMAT_ALL -> "全部 (JPG + RAW)"
+                PhotoSyncService.FORMAT_RAW_ONLY -> "仅 RAW (NEF)"
+                else -> "仅 JPG"
+            }
+            appendLog("已切换即拍即传格式策略: $modeName")
+        }
+
+        // 打开配对与操作指南
+        btnOpenGuide.setOnClickListener {
+            val intent = Intent(this, GuideActivity::class.java)
+            startActivity(intent)
+        }
+
+        // 打开相机卡内画廊
+        btnOpenGallery.setOnClickListener {
+            val ip = etCameraIp.text.toString().trim().ifEmpty { getString(R.string.default_ip) }
+            val intent = Intent(this, GalleryActivity::class.java).apply {
+                putExtra(GalleryActivity.EXTRA_CAMERA_IP, ip)
+            }
+            startActivity(intent)
+        }
+
+        // 打开 Picture Control 调色
+        btnOpenPictureControl.setOnClickListener {
+            val intent = Intent(this, PictureControlActivity::class.java)
+            startActivity(intent)
+        }
+
+        // 蓝牙 GPS 开关
+        switchGpsRelay.setOnCheckedChangeListener { _, isChecked ->
+            if (isChecked) {
+                val intent = Intent(this, BluetoothGpsRelayService::class.java).apply {
+                    action = BluetoothGpsRelayService.ACTION_START_GPS
+                }
+                startForegroundService(intent)
+                appendLog("已启动蓝牙 GPS 实时中继服务")
+            } else {
+                val intent = Intent(this, BluetoothGpsRelayService::class.java).apply {
+                    action = BluetoothGpsRelayService.ACTION_STOP_GPS
+                }
+                startService(intent)
+                appendLog("已停止蓝牙 GPS 中继服务")
+            }
+        }
 
         btnConnect.setOnClickListener {
             val service = syncService ?: return@setOnClickListener
@@ -108,10 +220,18 @@ class MainActivity : AppCompatActivity() {
                 val ip = etCameraIp.text.toString().trim().ifEmpty { getString(R.string.default_ip) }
                 etCameraIp.setText(ip)
                 etCameraIp.clearFocus()
-                preferences.edit().putString("camera_ip", ip).apply()
+                prefs.edit().putString("camera_ip", ip).apply()
+
+                val mode = when (rgFormatMode.checkedRadioButtonId) {
+                    R.id.rbFormatAll -> PhotoSyncService.FORMAT_ALL
+                    R.id.rbFormatRaw -> PhotoSyncService.FORMAT_RAW_ONLY
+                    else -> PhotoSyncService.FORMAT_JPG_ONLY
+                }
+
                 val startIntent = Intent(this, PhotoSyncService::class.java).apply {
                     action = PhotoSyncService.ACTION_START_SYNC
                     putExtra(PhotoSyncService.EXTRA_CAMERA_IP, ip)
+                    putExtra(PhotoSyncService.EXTRA_FORMAT_MODE, mode)
                 }
                 startForegroundService(startIntent)
                 updateConnectionUI(connecting = true)
@@ -146,41 +266,53 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun appendLog(msg: String) {
-        val current = tvLogConsole.text.toString()
         val line = "[${android.text.format.DateFormat.format("HH:mm:ss", java.util.Date())}] $msg\n"
-        tvLogConsole.text = line + current.take(2000)
+        tvLogConsole.append(line)
     }
 
     private fun checkPermissions() {
-        val needed = mutableListOf<String>()
+        val permissions = mutableListOf(
+            Manifest.permission.INTERNET,
+            Manifest.permission.ACCESS_NETWORK_STATE,
+            Manifest.permission.ACCESS_WIFI_STATE,
+            Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        )
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            needed.add(Manifest.permission.POST_NOTIFICATIONS)
-        }
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
-            needed.add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+            permissions.add(Manifest.permission.POST_NOTIFICATIONS)
         }
 
-        val ungranted = needed.filter {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            permissions.add(Manifest.permission.BLUETOOTH_SCAN)
+            permissions.add(Manifest.permission.BLUETOOTH_CONNECT)
+        } else {
+            permissions.add(Manifest.permission.BLUETOOTH)
+            permissions.add(Manifest.permission.BLUETOOTH_ADMIN)
+        }
+
+        val needed = permissions.filter {
             ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
         }
 
-        if (ungranted.isNotEmpty()) {
-            requestPermissionLauncher.launch(ungranted.toTypedArray())
+        if (needed.isNotEmpty()) {
+            requestPermissionLauncher.launch(needed.toTypedArray())
         }
     }
 
     private fun bindSyncService() {
         val intent = Intent(this, PhotoSyncService::class.java)
-        isBound = bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
+        bindService(intent, syncConnection, Context.BIND_AUTO_CREATE)
+    }
+
+    private fun bindGpsService() {
+        val intent = Intent(this, BluetoothGpsRelayService::class.java)
+        bindService(intent, gpsConnection, Context.BIND_AUTO_CREATE)
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        if (isBound) {
-            syncService?.onStatusChanged = null
-            syncService?.onNewPhotoSaved = null
-            unbindService(serviceConnection)
-            isBound = false
-        }
+        try { unbindService(syncConnection) } catch (_: Exception) {}
+        try { unbindService(gpsConnection) } catch (_: Exception) {}
     }
 }

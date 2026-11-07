@@ -1,81 +1,347 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:layout_width="match_parent" android:layout_height="match_parent" android:fillViewport="true"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true"
     android:background="@color/sync_canvas">
 
-    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical"
-        android:focusableInTouchMode="true" android:paddingHorizontal="20dp"
-        android:paddingTop="20dp" android:paddingBottom="28dp">
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:focusableInTouchMode="true"
+        android:paddingHorizontal="20dp"
+        android:paddingTop="20dp"
+        android:paddingBottom="36dp">
 
-        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical">
-            <ImageView android:layout_width="62dp" android:layout_height="62dp" android:src="@mipmap/ic_launcher"
-                android:importantForAccessibility="no" android:layout_marginEnd="14dp" />
-            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
-                <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:letterSpacing="0.16"
-                    android:text="@string/eyebrow" android:textSize="11sp"
-                    android:textColor="@color/sync_gold_ink" android:textStyle="bold" />
-                <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
-                    android:text="@string/app_name" android:textSize="30sp"
-                    android:textColor="@color/sync_ink" android:textStyle="bold" />
-                <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
-                    android:text="@string/subtitle" android:textSize="14sp"
+        <!-- 顶部标题与指南入口 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical">
+
+            <ImageView
+                android:layout_width="56dp"
+                android:layout_height="56dp"
+                android:src="@mipmap/ic_launcher"
+                android:importantForAccessibility="no"
+                android:layout_marginEnd="12dp" />
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:letterSpacing="0.14"
+                    android:text="@string/eyebrow"
+                    android:textSize="11sp"
+                    android:textColor="@color/sync_gold_ink"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/app_name"
+                    android:textSize="28sp"
+                    android:textColor="@color/sync_ink"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/subtitle"
+                    android:textSize="13sp"
                     android:textColor="@color/sync_muted" />
+            </LinearLayout>
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnOpenGuide"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="wrap_content"
+                android:layout_height="44dp"
+                android:text="配对指南"
+                android:textColor="@color/sync_gold_ink"
+                android:textSize="13sp"
+                app:cornerRadius="12dp"
+                app:strokeColor="@color/sync_gold" />
+        </LinearLayout>
+
+        <!-- 状态面板 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginTop="16dp"
+            android:background="@drawable/sync_panel"
+            android:padding="16dp">
+
+            <TextView
+                android:id="@+id/tvStatusBadge"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:accessibilityLiveRegion="polite"
+                android:text="@string/idle"
+                android:textSize="17sp"
+                android:textColor="@color/sync_muted"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tvStatusText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="@string/wifi_hint"
+                android:textSize="13sp"
+                android:textColor="@color/sync_muted" />
+        </LinearLayout>
+
+        <!-- 相机连接与控制 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginTop="12dp"
+            android:background="@drawable/sync_panel"
+            android:padding="16dp">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/connection_title"
+                android:textSize="17sp"
+                android:textColor="@color/sync_ink"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:labelFor="@+id/etCameraIp"
+                android:text="@string/ip_label"
+                android:textSize="13sp"
+                android:textColor="@color/sync_muted" />
+
+            <EditText
+                android:id="@+id/etCameraIp"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:minHeight="46dp"
+                android:background="@drawable/sync_field"
+                android:paddingHorizontal="12dp"
+                android:paddingVertical="8dp"
+                android:text="@string/default_ip"
+                android:textColor="@color/sync_ink"
+                android:fontFamily="monospace"
+                android:textSize="15sp"
+                android:inputType="textUri"
+                android:singleLine="true"
+                android:imeOptions="actionDone" />
+
+            <!-- 传输格式筛选 -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="即拍即传格式策略"
+                android:textSize="13sp"
+                android:textColor="@color/sync_muted" />
+
+            <RadioGroup
+                android:id="@+id/rgFormatMode"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:orientation="vertical">
+
+                <RadioButton
+                    android:id="@+id/rbFormatJpg"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:checked="true"
+                    android:text="仅同步 JPG (推荐，秒传预览)"
+                    android:textColor="@color/sync_ink"
+                    android:textSize="13sp" />
+
+                <RadioButton
+                    android:id="@+id/rbFormatAll"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="同步全部 (JPG + RAW)"
+                    android:textColor="@color/sync_ink"
+                    android:textSize="13sp" />
+
+                <RadioButton
+                    android:id="@+id/rbFormatRaw"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="仅同步 RAW (NEF 原片)"
+                    android:textColor="@color/sync_ink"
+                    android:textSize="13sp" />
+            </RadioGroup>
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnConnect"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:enabled="false"
+                android:textColor="@color/sync_ink"
+                android:minHeight="50dp"
+                android:text="@string/connect"
+                android:textAllCaps="false"
+                android:textSize="15sp"
+                app:cornerRadius="14dp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnShutter"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:enabled="false"
+                android:minHeight="50dp"
+                android:textColor="@color/sync_muted"
+                android:text="@string/shutter"
+                android:textAllCaps="false"
+                android:textSize="15sp"
+                app:cornerRadius="14dp" />
+        </LinearLayout>
+
+        <!-- 原版核心功能拓展区 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginTop="14dp"
+            android:background="@drawable/sync_panel"
+            android:padding="16dp">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="扩展功能"
+                android:textSize="17sp"
+                android:textColor="@color/sync_ink"
+                android:textStyle="bold" />
+
+            <!-- 相机卡内画廊 -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnOpenGallery"
+                style="@style/Widget.Material3.Button.TonalButton"
+                android:layout_width="match_parent"
+                android:layout_height="50dp"
+                android:layout_marginTop="10dp"
+                android:text="打开相机卡内画廊 (回看/批量下载)"
+                android:textColor="@color/sync_ink"
+                android:textSize="14sp"
+                app:cornerRadius="12dp" />
+
+            <!-- 尼康 Picture Control 色彩预设 -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnOpenPictureControl"
+                style="@style/Widget.Material3.Button.TonalButton"
+                android:layout_width="match_parent"
+                android:layout_height="50dp"
+                android:layout_marginTop="8dp"
+                android:text="尼康 Picture Control 调色与预设导出"
+                android:textColor="@color/sync_ink"
+                android:textSize="14sp"
+                app:cornerRadius="12dp" />
+
+            <!-- 蓝牙 GPS 定位中继 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginTop="12dp"
+                android:paddingTop="6dp">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="蓝牙 GPS 实时中继"
+                        android:textSize="14sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/sync_ink" />
+
+                    <TextView
+                        android:id="@+id/tvGpsStatus"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:text="未启动 (向相机注入经纬度)"
+                        android:textSize="12sp"
+                        android:textColor="@color/sync_muted" />
+                </LinearLayout>
+
+                <androidx.appcompat.widget.SwitchCompat
+                    android:id="@+id/switchGpsRelay"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content" />
             </LinearLayout>
         </LinearLayout>
 
-        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:layout_marginTop="20dp"
-            android:background="@drawable/sync_panel" android:padding="18dp">
-            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:id="@+id/tvStatusBadge" android:accessibilityLiveRegion="polite"
-                android:text="@string/idle" android:textSize="17sp"
-                android:textColor="@color/sync_muted" android:textStyle="bold" />
-            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:id="@+id/tvStatusText" android:layout_marginTop="5dp"
-                android:text="@string/wifi_hint" android:textSize="14sp"
-                android:textColor="@color/sync_muted" />
-        </LinearLayout>
+        <!-- 最近传图预览 -->
+        <LinearLayout
+            android:id="@+id/photoSection"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginTop="14dp"
+            android:visibility="gone">
 
-        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:layout_marginTop="12dp"
-            android:background="@drawable/sync_panel" android:padding="18dp">
-            <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
-                android:text="@string/connection_title" android:textSize="18sp"
-                android:textColor="@color/sync_ink" android:textStyle="bold" />
-            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:labelFor="@+id/etCameraIp"
-                android:text="@string/ip_label" android:textSize="13sp"
-                android:textColor="@color/sync_muted" />
-            <EditText android:id="@+id/etCameraIp" android:layout_width="match_parent" android:layout_height="wrap_content"
-                android:layout_marginTop="5dp" android:minHeight="48dp" android:background="@drawable/sync_field"
-                android:paddingHorizontal="12dp" android:paddingVertical="10dp"
-                android:text="@string/default_ip" android:textColor="@color/sync_ink"
-                android:fontFamily="monospace" android:textSize="16sp"
-                android:inputType="textUri" android:singleLine="true" android:imeOptions="actionDone" />
-            <com.google.android.material.button.MaterialButton android:id="@+id/btnConnect" android:layout_width="match_parent" android:layout_height="wrap_content"
-                android:layout_marginTop="10dp" android:enabled="false" android:textColor="@color/sync_ink"
-                android:minHeight="52dp" android:text="@string/connect" android:textAllCaps="false"
-                android:textSize="15sp" app:cornerRadius="14dp" />
-            <com.google.android.material.button.MaterialButton android:id="@+id/btnShutter" android:layout_width="match_parent" android:layout_height="wrap_content"
-                style="@style/Widget.Material3.Button.OutlinedButton" android:layout_marginTop="4dp"
-                android:enabled="false" android:minHeight="52dp" android:textColor="@color/sync_muted"
-                android:text="@string/shutter" android:textAllCaps="false"
-                android:textSize="15sp" app:cornerRadius="14dp" />
-        </LinearLayout>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/latest_photo"
+                android:textSize="16sp"
+                android:textColor="@color/sync_ink"
+                android:textStyle="bold" />
 
-        <LinearLayout android:id="@+id/photoSection" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical"
-            android:layout_marginTop="18dp" android:visibility="gone">
-            <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
-                android:text="@string/latest_photo" android:textSize="16sp"
-                android:textColor="@color/sync_ink" android:textStyle="bold" />
-            <ImageView android:id="@+id/ivLastPhoto" android:layout_width="match_parent" android:layout_height="200dp" android:layout_marginTop="8dp"
-                android:scaleType="fitCenter" android:background="@drawable/sync_panel"
+            <ImageView
+                android:id="@+id/ivLastPhoto"
+                android:layout_width="match_parent"
+                android:layout_height="200dp"
+                android:layout_marginTop="8dp"
+                android:scaleType="fitCenter"
+                android:background="@drawable/sync_panel"
                 android:contentDescription="@string/latest_photo" />
         </LinearLayout>
 
-        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="18dp"
-            android:text="@string/logs" android:textSize="16sp"
-            android:textColor="@color/sync_ink" android:textStyle="bold" />
-        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:id="@+id/tvLogConsole" android:layout_marginTop="8dp"
-            android:background="@drawable/sync_console" android:padding="14dp"
-            android:textIsSelectable="true" android:fontFamily="monospace"
-            android:text="@string/log_ready" android:textSize="12sp"
+        <!-- 日志控制台 -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="@string/logs"
+            android:textSize="16sp"
+            android:textColor="@color/sync_ink"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/tvLogConsole"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:background="@drawable/sync_console"
+            android:padding="14dp"
+            android:textIsSelectable="true"
+            android:fontFamily="monospace"
+            android:text="@string/log_ready"
+            android:textSize="12sp"
             android:textColor="@color/sync_log_text" />
     </LinearLayout>
 </ScrollView>

@@ -5,11 +5,20 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
+
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
 
     <application
@@ -29,10 +38,30 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".ui.GalleryActivity"
+            android:exported="false"
+            android:label="相机卡内画廊" />
+
+        <activity
+            android:name=".ui.PictureControlActivity"
+            android:exported="false"
+            android:label="Picture Control 调色" />
+
+        <activity
+            android:name=".ui.GuideActivity"
+            android:exported="false"
+            android:label="相机配对与操作指南" />
+
         <service
             android:name=".service.PhotoSyncService"
             android:exported="false"
             android:foregroundServiceType="connectedDevice" />
+
+        <service
+            android:name=".service.BluetoothGpsRelayService"
+            android:exported="false"
+            android:foregroundServiceType="location|connectedDevice" />
     </application>
 
 </manifest>
