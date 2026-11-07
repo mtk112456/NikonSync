@@ -20,10 +20,10 @@ import com.nikonsync.app.util.NetworkUtils
  * 包含双通道握手、状态监听、拍照触发、对象信息检索、缩略图获取与原图流下载
  */
 class NikonPtpClient(
-    rawHost: String = "192.168.0.1",
+    host: String = "192.168.0.1",
     val port: Int = 15740
 ) {
-    val host: String = NetworkUtils.normalizeIp(rawHost)
+    val host: String = NetworkUtils.normalizeIp(host)
     companion object {
         private const val TAG = "NikonPtpClient"
         private const val HANDSHAKE_TIMEOUT_MS = 5000
