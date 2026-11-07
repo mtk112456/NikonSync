@@ -1,24 +1,24 @@
 <resources>
     <string name="app_name">NikonSync</string>
-    <string name="eyebrow">CAMERA LINK PRO</string>
-    <string name="subtitle">尼康微单全能无线伴侣</string>
+    <string name="eyebrow">NikonSync</string>
+    <string name="subtitle">无线同步</string>
     <string name="idle">未连接</string>
     <string name="connecting">连接中</string>
     <string name="connected">已连接</string>
-    <string name="wifi_hint">先在手机的 WLAN 设置中连接相机热点。</string>
-    <string name="connecting_hint">正在与相机建立双通道通信，请稍候。</string>
-    <string name="connected_hint">拍摄后，照片会自动传到手机相册。</string>
-    <string name="connection_title">相机 Wi-Fi 连接</string>
-    <string name="ip_label">相机 IP 地址</string>
+    <string name="wifi_hint">等待相机连接</string>
+    <string name="connecting_hint">正在建立连接...</string>
+    <string name="connected_hint">拍摄后自动同步至相册</string>
+    <string name="connection_title">相机连接</string>
+    <string name="ip_label">相机 IP</string>
     <string name="default_ip">192.168.0.1</string>
     <string name="connect">连接相机</string>
     <string name="disconnect">断开连接</string>
     <string name="shutter">远程快门</string>
-    <string name="latest_photo">最近同步的照片</string>
+    <string name="latest_photo">最近照片</string>
     <string name="logs">运行日志</string>
-    <string name="log_ready">系统就绪，等待连接相机。</string>
-    <string name="guide_btn">使用指南</string>
-    <string name="open_gallery">打开相机卡内画廊</string>
-    <string name="open_pc">Picture Control 色彩调校</string>
-    <string name="gps_relay">蓝牙 GPS 定位中继</string>
+    <string name="log_ready">系统就绪，等待连接。</string>
+    <string name="guide_btn">配对指南</string>
+    <string name="open_gallery">相机画廊</string>
+    <string name="open_pc">Picture Control</string>
+    <string name="gps_relay">GPS 写入</string>
 </resources>

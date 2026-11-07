@@ -1,10 +1,10 @@
 {
-  "versionCode": 8,
-  "versionName": "2.1.5",
+  "versionCode": 9,
+  "versionName": "2.1.6",
   "releaseDate": "2026-11-07",
-  "title": "NikonSync v2.1.5 局域网秒级智能扫描与前导零自愈版",
-  "changelog": "1. 新增【🔍 一键自动扫描局域网相机】：秒级并发探测局域网内的尼康微单，免手动查 IP\n2. 智能 IP 容错自愈：自动识别并清除相机界面显示的带前导零 IP (如 192.168.031.213 自动修复为 192.168.31.213)\n3. 彻底修复模式二误将家庭路由器网关当作相机的 ECONNREFUSED 异常\n4. 新增一键重置 192.168.0.1 默认热点地址按钮",
-  "downloadUrl": "https://github.com/mtk112456/NikonSync/releases/download/v2.1.5/NikonSync-v2.1.5.apk",
-  "mirrorDownloadUrl": "https://ghfast.top/https://github.com/mtk112456/NikonSync/releases/download/v2.1.5/NikonSync-v2.1.5.apk",
-  "cdnDownloadUrl": "https://cdn.jsdelivr.net/gh/mtk112456/NikonSync@main/apk/NikonSync-v2.1.5.apk"
+  "title": "NikonSync v2.1.6 极简纯净版",
+  "changelog": "1. 界面深度精简：彻底删除冗余提示与无效文案，界面回归纯净极简\n2. 传输格式横向优化排版，空间利用率大幅提升\n3. 局域网扫描、IP重置与日志控制台全面优化精炼",
+  "downloadUrl": "https://github.com/mtk112456/NikonSync/releases/download/v2.1.6/NikonSync-v2.1.6.apk",
+  "mirrorDownloadUrl": "https://ghfast.top/https://github.com/mtk112456/NikonSync/releases/download/v2.1.6/NikonSync-v2.1.6.apk",
+  "cdnDownloadUrl": "https://cdn.jsdelivr.net/gh/mtk112456/NikonSync@main/apk/NikonSync-v2.1.6.apk"
 }

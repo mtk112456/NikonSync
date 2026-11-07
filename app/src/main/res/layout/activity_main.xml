@@ -3,95 +3,67 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:fillViewport="true"
-    android:background="@color/sync_canvas">
+    android:background="@color/sync_bg"
+    android:fillViewport="true">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:focusableInTouchMode="true"
         android:paddingHorizontal="20dp"
         android:paddingTop="20dp"
         android:paddingBottom="36dp">
 
-        <!-- 顶部标题与指南入口 -->
+        <!-- 顶部导航栏与标题 -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:gravity="center_vertical">
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
 
             <ImageView
-                android:layout_width="56dp"
-                android:layout_height="56dp"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
                 android:src="@mipmap/ic_launcher"
                 android:importantForAccessibility="no"
                 android:layout_marginEnd="12dp" />
 
-            <LinearLayout
+            <TextView
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:orientation="vertical">
+                android:text="@string/app_name"
+                android:textSize="24sp"
+                android:textColor="@color/sync_ink"
+                android:textStyle="bold" />
 
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:letterSpacing="0.14"
-                    android:text="@string/eyebrow"
-                    android:textSize="11sp"
-                    android:textColor="@color/sync_gold_ink"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="@string/app_name"
-                    android:textSize="28sp"
-                    android:textColor="@color/sync_ink"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="@string/subtitle"
-                    android:textSize="13sp"
-                    android:textColor="@color/sync_muted" />
-            </LinearLayout>
-
-            <LinearLayout
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnOpenGuide"
+                style="@style/Widget.Material3.Button.OutlinedButton"
                 android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:gravity="end">
+                android:layout_height="36dp"
+                android:paddingHorizontal="12dp"
+                android:paddingVertical="0dp"
+                android:text="配对指南"
+                android:textColor="@color/sync_gold_ink"
+                android:textSize="12sp"
+                app:cornerRadius="8dp"
+                app:strokeColor="@color/sync_gold" />
 
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnOpenGuide"
-                    style="@style/Widget.Material3.Button.OutlinedButton"
-                    android:layout_width="wrap_content"
-                    android:layout_height="40dp"
-                    android:paddingHorizontal="12dp"
-                    android:paddingVertical="0dp"
-                    android:text="配对指南"
-                    android:textColor="@color/sync_gold_ink"
-                    android:textSize="12sp"
-                    app:cornerRadius="10dp"
-                    app:strokeColor="@color/sync_gold" />
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnCheckUpdate"
-                    style="@style/Widget.Material3.Button.TextButton"
-                    android:layout_width="wrap_content"
-                    android:layout_height="32dp"
-                    android:paddingHorizontal="6dp"
-                    android:paddingVertical="0dp"
-                    android:text="检查更新"
-                    android:textColor="@color/sync_muted"
-                    android:textSize="11sp" />
-            </LinearLayout>
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnCheckUpdate"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:layout_marginStart="4dp"
+                android:paddingHorizontal="6dp"
+                android:paddingVertical="0dp"
+                android:text="检查更新"
+                android:textColor="@color/sync_muted"
+                android:textSize="11sp" />
         </LinearLayout>
 
-        <!-- 状态面板 -->
+        <!-- 状态卡片 -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -120,7 +92,7 @@
                 android:textColor="@color/sync_muted" />
         </LinearLayout>
 
-        <!-- 相机连接与控制 -->
+        <!-- 相机连接 -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -133,7 +105,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="@string/connection_title"
-                android:textSize="17sp"
+                android:textSize="16sp"
                 android:textColor="@color/sync_ink"
                 android:textStyle="bold" />
 
@@ -142,7 +114,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="10dp"
                 android:labelFor="@+id/etCameraIp"
-                android:text="相机 IP 地址 (直连热点默认 192.168.0.1 / 家用Wi-Fi请输入局域网IP)"
+                android:text="相机 IP"
                 android:textSize="12sp"
                 android:textColor="@color/sync_muted" />
 
@@ -178,7 +150,7 @@
                     android:layout_weight="1"
                     android:paddingHorizontal="8dp"
                     android:paddingVertical="0dp"
-                    android:text="🔍 一键自动扫描局域网相机"
+                    android:text="自动扫描"
                     android:textSize="12sp" />
 
                 <com.google.android.material.button.MaterialButton
@@ -187,26 +159,18 @@
                     android:layout_width="wrap_content"
                     android:layout_height="36dp"
                     android:layout_marginStart="8dp"
-                    android:paddingHorizontal="6dp"
+                    android:paddingHorizontal="8dp"
                     android:paddingVertical="0dp"
-                    android:text="重置 192.168.0.1"
+                    android:text="默认 IP"
                     android:textSize="11sp" />
             </LinearLayout>
 
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:text="💡 模式二提示：若让相机连家里小米Wi-Fi，可点击上方「一键自动扫描」；或在相机[连接到计算机]>[网络设定]>[TCP/IP]中查看相机真实IP并在此输入（切勿输入192.168.31.1路由器IP）。"
-                android:textSize="11sp"
-                android:textColor="#E65100" />
-
-            <!-- 传输格式筛选 -->
+            <!-- 传输格式 -->
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"
-                android:text="即拍即传格式策略"
+                android:text="传输格式"
                 android:textSize="13sp"
                 android:textColor="@color/sync_muted" />
 
@@ -215,30 +179,32 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
-                android:orientation="vertical">
+                android:orientation="horizontal">
 
                 <RadioButton
                     android:id="@+id/rbFormatJpg"
-                    android:layout_width="match_parent"
+                    android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:checked="true"
-                    android:text="仅同步 JPG (推荐，秒传预览)"
+                    android:text="仅 JPG"
                     android:textColor="@color/sync_ink"
                     android:textSize="13sp" />
 
                 <RadioButton
                     android:id="@+id/rbFormatAll"
-                    android:layout_width="match_parent"
+                    android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="同步全部 (JPG + RAW)"
+                    android:layout_marginStart="14dp"
+                    android:text="JPG + RAW"
                     android:textColor="@color/sync_ink"
                     android:textSize="13sp" />
 
                 <RadioButton
                     android:id="@+id/rbFormatRaw"
-                    android:layout_width="match_parent"
+                    android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="仅同步 RAW (NEF 原片)"
+                    android:layout_marginStart="14dp"
+                    android:text="仅 RAW"
                     android:textColor="@color/sync_ink"
                     android:textSize="13sp" />
             </RadioGroup>
@@ -248,30 +214,17 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:gravity="center_vertical"
-                android:layout_marginTop="10dp"
+                android:layout_marginTop="8dp"
                 android:layout_marginBottom="4dp">
 
-                <LinearLayout
+                <TextView
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:orientation="vertical">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="连上 Wi-Fi 自动连接相机"
-                        android:textColor="@color/sync_ink"
-                        android:textSize="13sp"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="开机连上相机热点时自动连接与断线重连"
-                        android:textColor="@color/sync_muted"
-                        android:textSize="11sp" />
-                </LinearLayout>
+                    android:text="自动连接"
+                    android:textColor="@color/sync_ink"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
 
                 <androidx.appcompat.widget.SwitchCompat
                     android:id="@+id/switchAutoConnect"
@@ -283,37 +236,35 @@
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnConnect"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
-                android:enabled="false"
-                android:textColor="@color/sync_ink"
-                android:minHeight="50dp"
+                android:layout_height="48dp"
+                android:layout_marginTop="8dp"
                 android:text="@string/connect"
-                android:textAllCaps="false"
+                android:textColor="@color/sync_gold_ink"
                 android:textSize="15sp"
-                app:cornerRadius="14dp" />
+                android:textStyle="bold"
+                app:backgroundTint="@color/sync_gold"
+                app:cornerRadius="12dp" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnShutter"
                 style="@style/Widget.Material3.Button.OutlinedButton"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
+                android:layout_height="46dp"
+                android:layout_marginTop="8dp"
                 android:enabled="false"
-                android:minHeight="50dp"
-                android:textColor="@color/sync_muted"
                 android:text="@string/shutter"
-                android:textAllCaps="false"
-                android:textSize="15sp"
-                app:cornerRadius="14dp" />
+                android:textColor="@color/sync_ink"
+                android:textSize="14sp"
+                app:cornerRadius="12dp"
+                app:strokeColor="@color/sync_border" />
         </LinearLayout>
 
-        <!-- 原版核心功能拓展区 -->
+        <!-- 扩展功能 -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:layout_marginTop="14dp"
+            android:layout_marginTop="12dp"
             android:background="@drawable/sync_panel"
             android:padding="16dp">
 
@@ -321,33 +272,39 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="扩展功能"
-                android:textSize="17sp"
+                android:textSize="16sp"
                 android:textColor="@color/sync_ink"
                 android:textStyle="bold" />
 
-            <!-- 相机卡内画廊 -->
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnOpenGallery"
-                style="@style/Widget.Material3.Button.TonalButton"
+            <LinearLayout
                 android:layout_width="match_parent"
-                android:layout_height="50dp"
+                android:layout_height="wrap_content"
                 android:layout_marginTop="10dp"
-                android:text="打开相机卡内画廊 (回看/批量下载)"
-                android:textColor="@color/sync_ink"
-                android:textSize="14sp"
-                app:cornerRadius="12dp" />
+                android:orientation="horizontal">
 
-            <!-- 尼康 Picture Control 色彩预设 -->
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnOpenPictureControl"
-                style="@style/Widget.Material3.Button.TonalButton"
-                android:layout_width="match_parent"
-                android:layout_height="50dp"
-                android:layout_marginTop="8dp"
-                android:text="尼康 Picture Control 调色与预设导出"
-                android:textColor="@color/sync_ink"
-                android:textSize="14sp"
-                app:cornerRadius="12dp" />
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnOpenGallery"
+                    style="@style/Widget.Material3.Button.TonalButton"
+                    android:layout_width="0dp"
+                    android:layout_height="44dp"
+                    android:layout_weight="1"
+                    android:text="相机画廊"
+                    android:textColor="@color/sync_ink"
+                    android:textSize="13sp"
+                    app:cornerRadius="10dp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnOpenPictureControl"
+                    style="@style/Widget.Material3.Button.TonalButton"
+                    android:layout_width="0dp"
+                    android:layout_height="44dp"
+                    android:layout_weight="1"
+                    android:layout_marginStart="8dp"
+                    android:text="色彩管理"
+                    android:textColor="@color/sync_ink"
+                    android:textSize="13sp"
+                    app:cornerRadius="10dp" />
+            </LinearLayout>
 
             <!-- 蓝牙 GPS 定位中继 -->
             <LinearLayout
@@ -355,8 +312,7 @@
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
                 android:gravity="center_vertical"
-                android:layout_marginTop="12dp"
-                android:paddingTop="6dp">
+                android:layout_marginTop="10dp">
 
                 <LinearLayout
                     android:layout_width="0dp"
@@ -367,8 +323,8 @@
                     <TextView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="蓝牙 GPS 实时中继"
-                        android:textSize="14sp"
+                        android:text="蓝牙 GPS 写入"
+                        android:textSize="13sp"
                         android:textStyle="bold"
                         android:textColor="@color/sync_ink" />
 
@@ -377,8 +333,8 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="2dp"
-                        android:text="未启动 (向相机注入经纬度)"
-                        android:textSize="12sp"
+                        android:text="未启动"
+                        android:textSize="11sp"
                         android:textColor="@color/sync_muted" />
                 </LinearLayout>
 
@@ -395,38 +351,41 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:layout_marginTop="14dp"
+            android:layout_marginTop="12dp"
+            android:background="@drawable/sync_panel"
+            android:padding="16dp"
             android:visibility="gone">
 
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="@string/latest_photo"
-                android:textSize="16sp"
+                android:textSize="15sp"
                 android:textColor="@color/sync_ink"
                 android:textStyle="bold" />
 
             <ImageView
                 android:id="@+id/ivLastPhoto"
                 android:layout_width="match_parent"
-                android:layout_height="200dp"
-                android:layout_marginTop="8dp"
-                android:scaleType="fitCenter"
-                android:background="@drawable/sync_panel"
-                android:contentDescription="@string/latest_photo" />
+                android:layout_height="220dp"
+                android:layout_marginTop="10dp"
+                android:scaleType="centerCrop"
+                android:background="@drawable/sync_field"
+                android:clipToOutline="true"
+                android:importantForAccessibility="no" />
         </LinearLayout>
 
-        <!-- 日志折叠面板卡片 -->
+        <!-- 运行日志 (完全可折叠) -->
         <LinearLayout
-            android:id="@+id/layoutLogToggle"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:layout_marginTop="16dp"
+            android:layout_marginTop="12dp"
             android:background="@drawable/sync_panel"
-            android:padding="14dp">
+            android:padding="16dp">
 
             <LinearLayout
+                android:id="@+id/layoutLogToggle"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:gravity="center_vertical"
@@ -436,7 +395,7 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="运行与调试日志"
+                    android:text="运行日志"
                     android:textSize="15sp"
                     android:textStyle="bold"
                     android:textColor="@color/sync_ink" />
@@ -445,7 +404,6 @@
                     android:id="@+id/tvLogBadge"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="正常"
                     android:textSize="11sp"
                     android:paddingHorizontal="6dp"
                     android:paddingVertical="2dp"
@@ -457,12 +415,11 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginStart="8dp"
-                    android:text="[点击展开 ▾]"
+                    android:text="展开 ▾"
                     android:textSize="13sp"
                     android:textColor="@color/sync_gold_ink" />
             </LinearLayout>
 
-            <!-- 可折叠的日志内容，默认完全隐藏！ -->
             <LinearLayout
                 android:id="@+id/layoutLogContainer"
                 android:layout_width="match_parent"
@@ -494,7 +451,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:padding="6dp"
-                        android:text="清空控制台"
+                        android:text="清空"
                         android:textSize="12sp"
                         android:textColor="@color/sync_muted" />
                 </LinearLayout>

@@ -197,12 +197,12 @@ class MainActivity : AppCompatActivity() {
         layoutLogToggle.setOnClickListener {
             val isShown = layoutLogContainer.visibility == View.VISIBLE
             layoutLogContainer.visibility = if (isShown) View.GONE else View.VISIBLE
-            tvLogToggleIcon.text = if (isShown) "[点击展开 ▾]" else "[点击收起 ▴]"
+            tvLogToggleIcon.text = if (isShown) "展开 ▾" else "收起 ▴"
         }
 
         btnClearLog.setOnClickListener {
             tvLogConsole.text = getString(R.string.log_ready)
-            tvLogBadge.text = "正常"
+            tvLogBadge.text = ""
             tvLogBadge.setTextColor(ContextCompat.getColor(this, R.color.sync_muted))
         }
 
@@ -221,25 +221,25 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // 一键局域网秒级扫描相机
+        // 局域网扫描相机
         btnScanLocalCamera.setOnClickListener {
             lifecycleScope.launch {
                 btnScanLocalCamera.isEnabled = false
-                btnScanLocalCamera.text = "⏳ 正在极速扫描局域网..."
-                appendLog("正在并发扫描局域网内开放 15740 端口的尼康相机...")
+                btnScanLocalCamera.text = "扫描中..."
+                appendLog("正在扫描局域网相机...")
                 val foundIp = NetworkUtils.scanLocalCamera(this@MainActivity)
                 if (foundIp != null) {
                     val normalized = NetworkUtils.normalizeIp(foundIp)
                     etCameraIp.setText(normalized)
                     prefs.edit().putString("camera_ip", normalized).apply()
-                    appendLog("扫描成功！已发现相机 IP: $normalized")
-                    Toast.makeText(this@MainActivity, "成功找到局域网相机: $normalized", Toast.LENGTH_SHORT).show()
+                    appendLog("已发现相机 IP: $normalized")
+                    Toast.makeText(this@MainActivity, "找到相机: $normalized", Toast.LENGTH_SHORT).show()
                 } else {
-                    appendLog("未扫描到开放 15740 端口的相机。请确保相机已连接 Wi-Fi 并在相机屏幕进入[连接到计算机]等待状态", isError = true)
-                    Toast.makeText(this@MainActivity, "未扫描到相机，请检查相机是否在等待连接状态", Toast.LENGTH_LONG).show()
+                    appendLog("未扫描到相机，请确认相机在[连接到计算机]等待状态", isError = true)
+                    Toast.makeText(this@MainActivity, "未扫描到相机，请检查相机状态", Toast.LENGTH_LONG).show()
                 }
                 btnScanLocalCamera.isEnabled = true
-                btnScanLocalCamera.text = "🔍 一键自动扫描局域网相机"
+                btnScanLocalCamera.text = "自动扫描"
             }
         }
 
